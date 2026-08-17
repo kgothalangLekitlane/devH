@@ -33,7 +33,7 @@ jobs:
             'node_modules/next': '15.5.21',
             'node_modules/lodash': '4.18.0',
             'node_modules/glob': '10.5.0',
-            'node_modules/nanoid': '5.1.16'
+            'node_modules/nanoid': '3.3.16'
           };
           for (const [name, expected] of Object.entries(checks)) {
             const actual = lock.packages[name]?.version;
