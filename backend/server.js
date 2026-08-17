@@ -2,17 +2,59 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const connectDB = require("./models/db");
 const cors = require("cors");
 const dotenv = require("dotenv");
 
 dotenv.config();
 
+const requiredEnv = ["MONGO_URI", "JWT_SECRET"];
+const missingEnv = requiredEnv.filter((name) => !process.env[name]);
+if (missingEnv.length) {
+  console.error(`Missing required environment variables: ${missingEnv.join(", ")}`);
+  process.exit(1);
+}
+
 const app = express();
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+const PORT = Number(process.env.PORT) || 5000;
 
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
 app.use(cors({ origin: clientUrl, credentials: true }));
 app.use(express.json({ limit: "100kb" }));
+
+const buckets = new Map();
+const rateLimit = ({ windowMs, max }) => (req, res, next) => {
+  const key = `${req.ip}:${req.baseUrl}:${req.path}`;
+  const now = Date.now();
+  const bucket = buckets.get(key);
+  if (!bucket || now - bucket.startedAt >= windowMs) {
+    buckets.set(key, { startedAt: now, count: 1 });
+    return next();
+  }
+  bucket.count += 1;
+  if (bucket.count > max) {
+    res.set("Retry-After", Math.ceil((windowMs - (now - bucket.startedAt)) / 1000));
+    return res.status(429).json({ message: "Too many requests. Please try again later." });
+  }
+  next();
+};
+
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", service: "devheaven-api", uptime: process.uptime() });
+});
+
+app.get("/health/db", (req, res) => {
+  const connected = mongoose.connection.readyState === 1;
+  res.status(connected ? 200 : 503).json({ status: connected ? "ok" : "unavailable", database: connected ? "connected" : "disconnected" });
+});
+
+app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }));
+app.use("/api/auth/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 20 }));
+app.use("/api/messages", rateLimit({ windowMs: 60 * 1000, max: 120 }));
+app.use("/api/posts", rateLimit({ windowMs: 60 * 1000, max: 60 }));
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
@@ -22,22 +64,20 @@ app.use("/api/recruiters", require("./routes/recruiters"));
 app.use("/api/messages", require("./routes/messages"));
 app.use("/api", require("./routes/api"));
 
-const PORT = process.env.PORT || 5000;
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: clientUrl, credentials: true }
+app.use((err, req, res, next) => {
+  console.error("Unhandled request error:", err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({ message: "Internal server error" });
 });
 
-const getJwtSecret = () => {
-  if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not configured");
-  return process.env.JWT_SECRET;
-};
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: clientUrl, credentials: true } });
 
 io.use((socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers.authorization?.replace(/^Bearer\s+/i, "");
     if (!token) return next(new Error("Authentication required"));
-    socket.user = jwt.verify(token, getJwtSecret());
+    socket.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
     next(new Error("Invalid authentication token"));
@@ -45,10 +85,11 @@ io.use((socket, next) => {
 });
 
 io.on("connection", (socket) => {
-  console.log("Authenticated user connected:", socket.user.id);
+  socket.join(`user:${socket.user.id}`);
 
   socket.on("joinRoom", (room) => {
     if (typeof room !== "string" || room.length > 100) return;
+    if (room.startsWith("user:") && room !== `user:${socket.user.id}`) return;
     socket.join(room);
   });
 
@@ -56,17 +97,28 @@ io.on("connection", (socket) => {
     if (typeof room !== "string" || typeof message !== "string") return;
     const text = message.trim();
     if (!text || text.length > 5000) return;
-    io.to(room).emit("receiveMessage", {
-      message: text,
-      user: socket.user.id,
-      time: new Date()
-    });
+    io.to(room).emit("receiveMessage", { message: text, user: socket.user.id, time: new Date() });
   });
 });
 
+let shuttingDown = false;
+const shutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down gracefully`);
+  server.close(async () => {
+    await mongoose.connection.close(false);
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000).unref();
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
 connectDB()
   .then(() => server.listen(PORT, () => console.log(`Server running on port ${PORT}`)))
-  .catch(err => {
+  .catch((err) => {
     console.error(err);
     process.exit(1);
   });
