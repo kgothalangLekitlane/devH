@@ -2,16 +2,13 @@ const mongoose = require("mongoose")
 const Recruiter = require("../models/Recruiter")
 const Job = require("../models/Job")
 
-// Create recruiter profile
 const createRecruiter = async (req, res) => {
   try {
     const { name, email, company } = req.body
-
-    if (!name || !email) {
-      return res.status(400).json({ message: "Name and email are required" })
-    }
+    if (!name || !email) return res.status(400).json({ message: "Name and email are required" })
 
     const recruiter = new Recruiter({
+      owner: req.user.id,
       name: String(name).trim(),
       email: String(email).trim().toLowerCase(),
       company: company ? String(company).trim() : undefined
@@ -20,61 +17,51 @@ const createRecruiter = async (req, res) => {
     await recruiter.save()
     res.status(201).json({ recruiter })
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({ message: "Recruiter with this email already exists" })
-    }
+    if (err.code === 11000) return res.status(409).json({ message: "Recruiter with this email already exists" })
     res.status(400).json({ message: err.message })
   }
 }
 
-// Post a job
 const postJob = async (req, res) => {
   try {
     const { title, description, recruiterId } = req.body
+    if (!title || !description || !recruiterId) return res.status(400).json({ message: "Title, description, and recruiterId are required" })
+    if (!mongoose.Types.ObjectId.isValid(recruiterId)) return res.status(400).json({ message: "Invalid recruiterId" })
 
-    if (!title || !description || !recruiterId) {
-      return res.status(400).json({ message: "Title, description, and recruiterId are required" })
-    }
+    const recruiter = await Recruiter.findOne({ _id: recruiterId, owner: req.user.id })
+    if (!recruiter) return res.status(403).json({ message: "You do not own this recruiter profile" })
 
-    if (!mongoose.Types.ObjectId.isValid(recruiterId)) {
-      return res.status(400).json({ message: "Invalid recruiterId" })
-    }
-
-    const recruiter = await Recruiter.findById(recruiterId)
-    if (!recruiter) {
-      return res.status(404).json({ message: "Recruiter not found" })
-    }
-
-    const job = new Job({ title, description, recruiter: recruiterId })
+    const job = new Job({
+      title: String(title).trim(),
+      description: String(description).trim(),
+      recruiter: recruiterId
+    })
     await job.save()
 
     recruiter.jobs.push(job._id)
     await recruiter.save()
-
     await job.populate("recruiter", "name company")
-
     res.status(201).json({ job })
   } catch (err) {
     res.status(400).json({ message: err.message })
   }
 }
 
-// Get all jobs
 const getJobs = async (req, res) => {
   try {
-    const jobs = await Job.find().populate("recruiter", "name company").sort({ createdAt: -1 })
+    const jobs = await Job.find().populate("recruiter", "name company").sort({ createdAt: -1 }).limit(100)
     res.json({ jobs })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(500).json({ message: "Failed to fetch jobs" })
   }
 }
 
 const getRecruiters = async (req, res) => {
   try {
-    const recruiters = await Recruiter.find().sort({ createdAt: -1 })
+    const recruiters = await Recruiter.find().select("name email company jobs createdAt").sort({ createdAt: -1 }).limit(100)
     res.json({ recruiters })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(500).json({ message: "Failed to fetch recruiters" })
   }
 }
 

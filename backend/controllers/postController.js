@@ -3,10 +3,14 @@ const mongoose = require("mongoose")
 
 const getPosts = async (req, res) => {
   try {
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1)
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 50)
     const posts = await Post.find()
       .populate("author", "firstName lastName username")
       .sort({ createdAt: -1 })
-    res.json(posts)
+      .skip((page - 1) * limit)
+      .limit(limit)
+    res.json({ posts, page, limit })
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch posts" })
   }
@@ -14,27 +18,15 @@ const getPosts = async (req, res) => {
 
 const createPost = async (req, res) => {
   try {
-    const { title, content, tags } = req.body
-    const userId = req.user.id
+    const title = String(req.body.title || "").trim()
+    const content = String(req.body.content || "").trim()
+    const tags = Array.isArray(req.body.tags) ? req.body.tags.slice(0, 20).map(tag => String(tag).trim()).filter(Boolean) : []
+    if (!title || !content) return res.status(400).json({ error: "Title and content are required" })
+    if (title.length > 200 || content.length > 20000) return res.status(400).json({ error: "Post is too long" })
 
-    if (!title || !content) {
-      return res.status(400).json({ error: "Title and content are required" })
-    }
-
-    const post = new Post({
-      title,
-      content,
-      author: userId,
-      tags: tags || []
-    })
-
-    await post.save()
+    const post = await Post.create({ title, content, author: req.user.id, tags })
     await post.populate("author", "firstName lastName username")
-
-    res.status(201).json({
-      message: "Post created",
-      post
-    })
+    res.status(201).json({ message: "Post created", post })
   } catch (error) {
     console.error("Create post error:", error)
     res.status(500).json({ error: "Failed to create post" })
@@ -43,18 +35,11 @@ const createPost = async (req, res) => {
 
 const getPost = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: "Invalid post ID" })
-    }
-
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid post ID" })
     const post = await Post.findById(req.params.id)
       .populate("author", "firstName lastName username")
       .populate("comments.user", "firstName lastName username")
-    
-    if (!post) {
-      return res.status(404).json({ error: "Post not found" })
-    }
-
+    if (!post) return res.status(404).json({ error: "Post not found" })
     res.json(post)
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch post" })
@@ -65,26 +50,19 @@ const likePost = async (req, res) => {
   try {
     const postId = req.params.id
     const userId = req.user.id
-
-    if (!mongoose.Types.ObjectId.isValid(postId)) {
-      return res.status(400).json({ error: "Invalid post ID" })
-    }
+    if (!mongoose.Types.ObjectId.isValid(postId)) return res.status(400).json({ error: "Invalid post ID" })
 
     const post = await Post.findById(postId)
-    if (!post) {
-      return res.status(404).json({ error: "Post not found" })
-    }
+    if (!post) return res.status(404).json({ error: "Post not found" })
+    const hasLiked = post.likes.some(id => id.toString() === String(userId))
 
-    const hasLiked = post.likes.includes(userId)
-    
-    if (hasLiked) {
-      post.likes = post.likes.filter(id => id.toString() !== userId)
-    } else {
-      post.likes.push(userId)
-    }
+    const updated = await Post.findByIdAndUpdate(
+      postId,
+      hasLiked ? { $pull: { likes: userId } } : { $addToSet: { likes: userId } },
+      { new: true }
+    ).select("likes")
 
-    await post.save()
-    res.json({ message: hasLiked ? "Post unliked" : "Post liked", likes: post.likes.length })
+    res.json({ message: hasLiked ? "Post unliked" : "Post liked", likes: updated.likes.length })
   } catch (error) {
     res.status(500).json({ error: "Failed to like post" })
   }
@@ -93,43 +71,19 @@ const likePost = async (req, res) => {
 const addComment = async (req, res) => {
   try {
     const postId = req.params.id
-    const userId = req.user.id
-    const { text } = req.body
-
-    if (!mongoose.Types.ObjectId.isValid(postId)) {
-      return res.status(400).json({ error: "Invalid post ID" })
-    }
-
-    if (!text) {
-      return res.status(400).json({ error: "Comment text is required" })
-    }
+    const text = String(req.body.text || "").trim()
+    if (!mongoose.Types.ObjectId.isValid(postId)) return res.status(400).json({ error: "Invalid post ID" })
+    if (!text || text.length > 2000) return res.status(400).json({ error: "Comment must be between 1 and 2000 characters" })
 
     const post = await Post.findById(postId)
-    if (!post) {
-      return res.status(404).json({ error: "Post not found" })
-    }
-
-    post.comments.push({
-      user: userId,
-      text
-    })
-
+    if (!post) return res.status(404).json({ error: "Post not found" })
+    post.comments.push({ user: req.user.id, text })
     await post.save()
     await post.populate("comments.user", "firstName lastName username")
-
-    res.status(201).json({
-      message: "Comment added",
-      comment: post.comments[post.comments.length - 1]
-    })
+    res.status(201).json({ message: "Comment added", comment: post.comments[post.comments.length - 1] })
   } catch (error) {
     res.status(500).json({ error: "Failed to add comment" })
   }
 }
 
-module.exports = {
-  getPosts,
-  createPost,
-  getPost,
-  likePost,
-  addComment
-}
+module.exports = { getPosts, createPost, getPost, likePost, addComment }

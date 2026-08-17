@@ -1,6 +1,19 @@
-backend/node_modules/
-frontend/node_modules/
+# Dependencies
 node_modules/
-node_modules/
-node_modules/
-node_modules/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Build output
+.next/
+out/
+dist/
+
+# Runtime uploads
+backend/uploads/
+
+# Logs
+*.log
+npm-debug.log*

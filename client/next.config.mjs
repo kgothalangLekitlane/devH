@@ -1,30 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // output: 'export', // Removed for dynamic build on Vercel
-
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
-    unoptimized: true, // required for static export
+    unoptimized: true,
   },
-  // Moved from experimental to top level as per Next.js 15 requirements
   serverExternalPackages: [],
-  // Disable automatic static optimization to prevent prefetch issues
   trailingSlash: false,
-  // Add headers to prevent caching issues
   async headers() {
     return [
       {
         source: '/(.*)',
         headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
-          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         ],
       },
     ];
