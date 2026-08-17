@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   refresh-lockfiles:
+    if: ${{ !contains(github.event.head_commit.message, '[lockfiles-refreshed]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +20,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            backend/package-lock.json
 
       - name: Refresh client lockfile
         working-directory: client
@@ -55,7 +60,6 @@ jobs:
           const lock = require('./package-lock.json');
           const checks = {
             'node_modules/multer': '2.1.1',
-            'node_modules/socket.io': '4.8.3',
             'node_modules/socket.io-parser': '4.2.6'
           };
           for (const [name, expected] of Object.entries(checks)) {
@@ -67,14 +71,17 @@ jobs:
           }
           NODE
 
+      - name: Remove duplicate pnpm lockfile
+        run: rm -f client/pnpm-lock.yaml
+
       - name: Commit refreshed lockfiles
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add client/package-lock.json backend/package-lock.json
+          git add client/package-lock.json backend/package-lock.json client/pnpm-lock.yaml
           if git diff --cached --quiet; then
             echo "Lockfiles already current"
           else
-            git commit -m "security: refresh lockfiles with patched dependencies"
+            git commit -m "[lockfiles-refreshed] Refresh dependency lockfiles"
             git push
           fi
