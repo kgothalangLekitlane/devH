@@ -12,7 +12,6 @@ jobs:
     defaults:
       run:
         working-directory: client
-
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -23,6 +22,8 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - name: Install client dependencies
         run: npm ci
+      - name: Typecheck client
+        run: npx tsc --noEmit
       - name: Build client
         run: npm run build
 
@@ -31,7 +32,6 @@ jobs:
     defaults:
       run:
         working-directory: backend
-
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -43,4 +43,4 @@ jobs:
       - name: Install backend dependencies
         run: npm ci
       - name: Validate backend syntax
-        run: node --check server.js
+        run: npm run check
