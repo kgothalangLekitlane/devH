@@ -7,7 +7,8 @@
     "export": "echo 'Static export is disabled for Next.js 15 dynamic deployment'",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -67,5 +68,10 @@
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
+  },
+  "overrides": {
+    "lodash": "4.18.0",
+    "glob": "10.5.0",
+    "nanoid": "5.1.16"
   }
 }
