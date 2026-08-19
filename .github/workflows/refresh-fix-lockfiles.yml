@@ -1,0 +1,31 @@
+name: Refresh deployment lockfiles
+
+on:
+  push:
+    branches: [codex/fix-deployments]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Refresh client lockfile
+        working-directory: client
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Refresh backend lockfile
+        working-directory: backend
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Commit refreshed lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/refresh-fix-lockfiles.yml
+          git add client/package-lock.json backend/package-lock.json
+          git commit -m "fix: refresh npm lockfiles for deployment"
+          git push
