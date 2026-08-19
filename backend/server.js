@@ -92,7 +92,7 @@ io.on("connection", (socket) => {
   socket.join(`user:${socket.user.id}`);
 
   socket.on("joinConversation", ({ userId }) => {
-    if (typeof userId !== "string" || userId === String(socket.user.id)) return;
+    if (!mongoose.Types.ObjectId.isValid(userId) || userId === String(socket.user.id)) return;
     socket.join(conversationRoom(socket.user.id, userId));
   });
 
@@ -102,10 +102,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("sendMessage", ({ receiverId, message }) => {
-    if (typeof receiverId !== "string" || typeof message !== "string") return;
+    if (!mongoose.Types.ObjectId.isValid(receiverId) || typeof message !== "string") return;
+    if (receiverId === String(socket.user.id)) return;
     const text = message.trim();
-    if (!text || text.length > 5000 || receiverId === String(socket.user.id)) return;
+    if (!text || text.length > 5000) return;
     const room = conversationRoom(socket.user.id, receiverId);
+    if (!socket.rooms.has(room)) return;
     io.to(room).emit("receiveMessage", {
       message: text,
       senderId: socket.user.id,
