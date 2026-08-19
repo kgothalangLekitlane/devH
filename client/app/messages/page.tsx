@@ -1,305 +1,81 @@
+"use client"
+
+import Script from "next/script"
+import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { useAuth } from "@/contexts/AuthContext"
+import { fetchMessagesWithUser, fetchUsers, sendMessage, assetUrl } from "@/lib/api"
+import { formatRelativeTime } from "@/lib/time"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Code2, Search, Send, Paperclip, Smile, MoreVertical, Phone, Video } from "lucide-react"
-import Link from "next/link"
+import { Code2, Send } from "lucide-react"
 
 export default function MessagesPage() {
-  const conversations = [
-    {
-      id: 1,
-      name: "Sarah Chen",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "Thanks for the code review! I'll implement those changes.",
-      time: "2m ago",
-      unread: 2,
-      online: true,
-    },
-    {
-      id: 2,
-      name: "Alex Rodriguez",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "Are you available for a quick call about the project?",
-      time: "1h ago",
-      unread: 0,
-      online: true,
-    },
-    {
-      id: 3,
-      name: "Maya Patel",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "Great work on the API documentation!",
-      time: "3h ago",
-      unread: 1,
-      online: false,
-    },
-    {
-      id: 4,
-      name: "David Kim",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "Let's schedule a pair programming session",
-      time: "1d ago",
-      unread: 0,
-      online: false,
-    },
-    {
-      id: 5,
-      name: "Emma Wilson",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "I found a bug in the authentication module",
-      time: "2d ago",
-      unread: 0,
-      online: true,
-    },
-  ]
+  const { user: me, token } = useAuth()
+  const searchParams = useSearchParams()
+  const [users, setUsers] = useState<any[]>([])
+  const [selected, setSelected] = useState<any>(null)
+  const [messages, setMessages] = useState<any[]>([])
+  const [text, setText] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [socketReady, setSocketReady] = useState(false)
 
-  const currentMessages = [
-    {
-      id: 1,
-      sender: "Sarah Chen",
-      content: "Hey! I saw your React component library post. It looks amazing!",
-      time: "10:30 AM",
-      isMe: false,
-    },
-    {
-      id: 2,
-      sender: "Me",
-      content: "Thank you! I've been working on it for months. Would love to get your feedback.",
-      time: "10:32 AM",
-      isMe: true,
-    },
-    {
-      id: 3,
-      sender: "Sarah Chen",
-      content: "I'd be happy to review it. Could you share the GitHub repo?",
-      time: "10:33 AM",
-      isMe: false,
-    },
-    {
-      id: 4,
-      sender: "Me",
-      content: "Here's the link: https://github.com/johndoe/react-components",
-      time: "10:34 AM",
-      isMe: true,
-    },
-    {
-      id: 5,
-      sender: "Sarah Chen",
-      content:
-        "Perfect! I'll take a look this evening and provide detailed feedback. The TypeScript integration looks solid from what I can see.",
-      time: "10:35 AM",
-      isMe: false,
-    },
-    {
-      id: 6,
-      sender: "Me",
-      content:
-        "That would be fantastic! I'm particularly interested in your thoughts on the API design and documentation.",
-      time: "10:37 AM",
-      isMe: true,
-    },
-    {
-      id: 7,
-      sender: "Sarah Chen",
-      content: "Thanks for the code review! I'll implement those changes.",
-      time: "2:15 PM",
-      isMe: false,
-    },
-  ]
+  useEffect(() => {
+    if (!token) return
+    fetchUsers(token).then(list => {
+      const filtered = list.filter((u: any) => u._id !== me?.id)
+      setUsers(filtered)
+      const requested = searchParams.get("user")
+      setSelected(filtered.find((u: any) => u._id === requested) || filtered[0] || null)
+    }).catch(err => setError(err.message || "Unable to load users")).finally(() => setLoading(false))
+  }, [token, me?.id, searchParams])
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-8">
-              <Link href="/" className="flex items-center space-x-2">
-                <Code2 className="h-8 w-8 text-purple-600" />
-                <span className="text-2xl font-bold text-gray-900">DevHeaven</span>
-              </Link>
-              <div className="hidden md:flex items-center space-x-6">
-                <Link href="/dashboard" className="text-gray-600 hover:text-purple-600" prefetch={false}>
-                  Feed
-                </Link>
-                <Link href="/projects" className="text-gray-600 hover:text-purple-600" prefetch={false}>
-                  Projects
-                </Link>
-                <Link href="/resources" className="text-gray-600 hover:text-purple-600" prefetch={false}>
-                  Resources
-                </Link>
-                <Link href="/recruiters" className="text-gray-600 hover:text-purple-600" prefetch={false}>
-                  Jobs
-                </Link>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/profile" prefetch={false}>
-                <Avatar className="h-8 w-8 cursor-pointer">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                  <AvatarFallback>JD</AvatarFallback>
-                </Avatar>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+  useEffect(() => {
+    if (!token || !selected) return
+    fetchMessagesWithUser(selected._id, token).then(body => setMessages(body.messages || [])).catch(err => setError(err.message || "Unable to load conversation"))
+  }, [token, selected?._id])
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
-          {/* Conversations List */}
-          <div className="lg:col-span-1">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Messages
-                  <Badge variant="secondary">5</Badge>
-                </CardTitle>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input placeholder="Search conversations..." className="pl-10" />
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[calc(100vh-350px)]">
-                  <div className="space-y-1">
-                    {conversations.map((conversation) => (
-                      <div
-                        key={conversation.id}
-                        className={`p-4 hover:bg-gray-50 cursor-pointer border-l-4 ${
-                          conversation.id === 1 ? "border-purple-500 bg-purple-50" : "border-transparent"
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="relative">
-                            <Avatar className="h-10 w-10">
-                              <AvatarImage src={conversation.avatar || "/placeholder.svg"} />
-                              <AvatarFallback>
-                                {conversation.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            {conversation.online && (
-                              <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-gray-900 truncate">{conversation.name}</p>
-                              <div className="flex items-center space-x-2">
-                                <p className="text-xs text-gray-500">{conversation.time}</p>
-                                {conversation.unread > 0 && (
-                                  <Badge
-                                    variant="destructive"
-                                    className="h-5 w-5 p-0 text-xs flex items-center justify-center"
-                                  >
-                                    {conversation.unread}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <p className="text-sm text-gray-500 truncate">{conversation.lastMessage}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
+  useEffect(() => {
+    if (!token) return
+    let timer: number | undefined
+    let socket: any
+    const connect = () => {
+      const io = (window as any).io
+      if (!io) return false
+      socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000", { auth: { token } })
+      ;(window as any).__devheavenSocket = socket
+      socket.on("connect", () => {
+        setSocketReady(true)
+        if (selected?._id) socket.emit("joinConversation", { userId: selected._id })
+      })
+      socket.on("disconnect", () => setSocketReady(false))
+      socket.on("receiveMessage", (incoming: any) => {
+        if (!selected) return
+        const relevant = (String(incoming.senderId) === String(selected._id) && String(incoming.receiverId) === String(me?.id)) || (String(incoming.senderId) === String(me?.id) && String(incoming.receiverId) === String(selected._id))
+        if (relevant) setMessages(prev => [...prev, incoming])
+      })
+      return true
+    }
+    if (!connect()) timer = window.setInterval(() => { if (connect() && timer) window.clearInterval(timer) }, 250)
+    return () => { if (timer) window.clearInterval(timer); if (socket) socket.disconnect(); delete (window as any).__devheavenSocket; setSocketReady(false) }
+  }, [token, selected?._id, me?.id])
 
-          {/* Chat Area */}
-          <div className="lg:col-span-3">
-            <Card className="h-full flex flex-col">
-              {/* Chat Header */}
-              <CardHeader className="border-b">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                        <AvatarFallback>SC</AvatarFallback>
-                      </Avatar>
-                      <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">Sarah Chen</h3>
-                      <p className="text-sm text-gray-500">Online • Frontend Developer at TechCorp</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button size="sm" variant="ghost">
-                      <Phone className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="ghost">
-                      <Video className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="ghost">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
+  const conversationTitle = useMemo(() => selected ? `${selected.firstName} ${selected.lastName}` : "Messages", [selected])
+  const send = async () => {
+    if (!token || !selected || !text.trim()) return
+    const draft = text.trim(); setText("")
+    try {
+      const result = await sendMessage({ receiverId: selected._id, text: draft }, token)
+      if (result.chat) setMessages(prev => [...prev, result.chat])
+      const socket = (window as any).__devheavenSocket
+      if (socket?.connected) socket.emit("sendMessage", { receiverId: selected._id, message: draft })
+    } catch (err: any) { setText(draft); setError(err.message || "Unable to send message") }
+  }
 
-              {/* Messages */}
-              <CardContent className="flex-1 p-0">
-                <ScrollArea className="h-[calc(100vh-400px)] p-4">
-                  <div className="space-y-4">
-                    {currentMessages.map((message) => (
-                      <div key={message.id} className={`flex ${message.isMe ? "justify-end" : "justify-start"}`}>
-                        <div
-                          className={`flex items-end space-x-2 max-w-xs lg:max-w-md ${message.isMe ? "flex-row-reverse space-x-reverse" : ""}`}
-                        >
-                          {!message.isMe && (
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src="/placeholder.svg?height=24&width=24" />
-                              <AvatarFallback>SC</AvatarFallback>
-                            </Avatar>
-                          )}
-                          <div
-                            className={`px-4 py-2 rounded-lg ${
-                              message.isMe ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-900"
-                            }`}
-                          >
-                            <p className="text-sm">{message.content}</p>
-                            <p className={`text-xs mt-1 ${message.isMe ? "text-purple-200" : "text-gray-500"}`}>
-                              {message.time}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-
-              {/* Message Input */}
-              <div className="border-t p-4">
-                <div className="flex items-center space-x-2">
-                  <Button size="sm" variant="ghost">
-                    <Paperclip className="h-4 w-4" />
-                  </Button>
-                  <div className="flex-1 relative">
-                    <Input placeholder="Type your message..." className="pr-10" />
-                    <Button size="sm" variant="ghost" className="absolute right-1 top-1/2 transform -translate-y-1/2">
-                      <Smile className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  if (!me || !token) return <div className="min-h-screen flex items-center justify-center"><Link href="/login">Sign in to message people</Link></div>
+  return <div className="min-h-screen bg-gray-50"><Script src="https://cdn.socket.io/4.8.3/socket.io.min.js" strategy="afterInteractive" /><nav className="bg-white border-b"><div className="max-w-6xl mx-auto px-4 py-4"><Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl"><Code2 className="text-purple-600" />DevHeaven</Link></div></nav><main className="max-w-6xl mx-auto px-4 py-6"><Card className="h-[calc(100vh-150px)] flex overflow-hidden"><aside className="w-full md:w-80 border-r bg-white overflow-y-auto"><CardHeader><CardTitle>People</CardTitle><p className="text-xs text-gray-500">{socketReady ? "Real-time connected" : "Connecting to real-time..."}</p></CardHeader><CardContent className="p-2">{loading ? <p className="p-4 text-sm">Loading...</p> : users.map(person => <button key={person._id} onClick={() => setSelected(person)} className={`w-full flex items-center gap-3 p-3 rounded-lg text-left ${selected?._id === person._id ? "bg-purple-50" : "hover:bg-gray-50"}`}><Avatar><AvatarImage src={assetUrl(person.profileImage)} /><AvatarFallback>{person.firstName?.[0]}{person.lastName?.[0]}</AvatarFallback></Avatar><span><strong className="block">{person.firstName} {person.lastName}</strong><small className="text-gray-500">@{person.username}</small></span></button>)}</CardContent></aside><section className="flex-1 flex flex-col min-w-0">{selected ? <><header className="bg-white border-b p-4"><div className="flex items-center gap-3"><Avatar><AvatarImage src={assetUrl(selected.profileImage)} /><AvatarFallback>{selected.firstName?.[0]}{selected.lastName?.[0]}</AvatarFallback></Avatar><div><h2 className="font-semibold">{conversationTitle}</h2><p className="text-xs text-gray-500">@{selected.username}</p></div></div></header><div className="flex-1 overflow-y-auto p-4 space-y-3">{messages.length === 0 ? <p className="text-center text-gray-500 mt-10">No messages yet. Start the conversation.</p> : messages.map((message: any, index) => { const mine = String(message.senderId?._id || message.senderId) === String(me.id); return <div key={message._id || `${message.createdAt}-${index}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}><div className={`max-w-[75%] rounded-2xl px-4 py-2 ${mine ? "bg-purple-600 text-white" : "bg-white border"}`}><p>{message.text || message.message}</p><p className={`text-[11px] mt-1 ${mine ? "text-purple-100" : "text-gray-500"}`}>{formatRelativeTime(message.createdAt || new Date())}</p></div></div> })}</div><div className="bg-white border-t p-3 flex gap-2"><Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={`Message ${selected.firstName}...`} /><Button onClick={send} disabled={!text.trim()}><Send className="h-4 w-4" /></Button></div></> : <div className="flex-1 flex items-center justify-center text-gray-500">Select a person to start messaging.</div>}{error && <p className="p-2 text-sm text-red-600 bg-red-50">{error}</p>}</section></Card></main></div>
 }

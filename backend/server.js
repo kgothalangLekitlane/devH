@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
@@ -24,6 +25,7 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(cors({ origin: clientUrl, credentials: true }));
 app.use(express.json({ limit: "100kb" }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), { maxAge: "7d", immutable: false }));
 
 const buckets = new Map();
 const rateLimit = ({ windowMs, max }) => (req, res, next) => {
@@ -42,10 +44,7 @@ const rateLimit = ({ windowMs, max }) => (req, res, next) => {
   next();
 };
 
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok", service: "devheaven-api", uptime: process.uptime() });
-});
-
+app.get("/health", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", uptime: process.uptime() }));
 app.get("/health/db", (req, res) => {
   const connected = mongoose.connection.readyState === 1;
   res.status(connected ? 200 : 503).json({ status: connected ? "ok" : "unavailable", database: connected ? "connected" : "disconnected" });
@@ -84,20 +83,37 @@ io.use((socket, next) => {
   }
 });
 
+const conversationRoom = (a, b) => {
+  const ids = [String(a), String(b)].sort();
+  return `conversation:${ids[0]}:${ids[1]}`;
+};
+
 io.on("connection", (socket) => {
   socket.join(`user:${socket.user.id}`);
 
-  socket.on("joinRoom", (room) => {
-    if (typeof room !== "string" || room.length > 100) return;
-    if (room.startsWith("user:") && room !== `user:${socket.user.id}`) return;
-    socket.join(room);
+  socket.on("joinConversation", ({ userId }) => {
+    if (!mongoose.Types.ObjectId.isValid(userId) || userId === String(socket.user.id)) return;
+    socket.join(conversationRoom(socket.user.id, userId));
   });
 
-  socket.on("sendMessage", ({ room, message }) => {
-    if (typeof room !== "string" || typeof message !== "string") return;
+  socket.on("leaveConversation", ({ userId }) => {
+    if (typeof userId !== "string") return;
+    socket.leave(conversationRoom(socket.user.id, userId));
+  });
+
+  socket.on("sendMessage", ({ receiverId, message }) => {
+    if (!mongoose.Types.ObjectId.isValid(receiverId) || typeof message !== "string") return;
+    if (receiverId === String(socket.user.id)) return;
     const text = message.trim();
     if (!text || text.length > 5000) return;
-    io.to(room).emit("receiveMessage", { message: text, user: socket.user.id, time: new Date() });
+    const room = conversationRoom(socket.user.id, receiverId);
+    if (!socket.rooms.has(room)) return;
+    io.to(room).emit("receiveMessage", {
+      message: text,
+      senderId: socket.user.id,
+      receiverId,
+      createdAt: new Date().toISOString(),
+    });
   });
 });
 
@@ -112,7 +128,6 @@ const shutdown = async (signal) => {
   });
   setTimeout(() => process.exit(1), 10000).unref();
 };
-
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
