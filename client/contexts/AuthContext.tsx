@@ -8,9 +8,13 @@ interface User {
   email: string;
   username: string;
   profileImage?: string;
+  bio?: string;
   skills?: string[];
   location?: string;
   experience?: number;
+  timezone?: string;
+  socialLinks?: { github?: string; linkedin?: string; twitter?: string };
+  createdAt?: string;
 }
 
 interface AuthContextType {
@@ -29,26 +33,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth data on mount
-    const storedToken = localStorage.getItem('authToken');
-    const storedUser = localStorage.getItem('authUser');
-
-    if (storedToken && storedUser) {
-      try {
+    try {
+      const storedToken = localStorage.getItem('authToken');
+      const storedUser = localStorage.getItem('authUser');
+      if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
-
-        // If it's a demo token, add a console message
-        if (storedToken.startsWith('demo-')) {
-          console.log('Demo mode active - backend not connected');
-        }
-      } catch (error) {
-        console.error('Error parsing stored user data:', error);
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('authUser');
       }
+    } catch {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authUser');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -65,17 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('authUser');
   };
 
-  return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
