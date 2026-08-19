@@ -1,0 +1,87 @@
+name: Refresh dependency lockfiles
+
+on:
+  push:
+    branches: [codex/security-hardening]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfiles:
+    if: ${{ !contains(github.event.head_commit.message, '[lockfiles-refreshed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/security-hardening
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            backend/package-lock.json
+
+      - name: Refresh client lockfile
+        working-directory: client
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Verify client patched dependency versions
+        working-directory: client
+        run: |
+          node - <<'NODE'
+          const lock = require('./package-lock.json');
+          const checks = {
+            'node_modules/next': '15.5.21',
+            'node_modules/lodash': '4.18.0',
+            'node_modules/glob': '10.5.0',
+            'node_modules/nanoid': '3.3.16'
+          };
+          for (const [name, expected] of Object.entries(checks)) {
+            const actual = lock.packages[name]?.version;
+            if (actual !== expected) {
+              console.error(`${name}=${actual || 'missing'}, expected ${expected}`);
+              process.exit(1);
+            }
+          }
+          NODE
+
+      - name: Refresh backend lockfile
+        working-directory: backend
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Verify backend patched dependency versions
+        working-directory: backend
+        run: |
+          node - <<'NODE'
+          const lock = require('./package-lock.json');
+          const checks = {
+            'node_modules/multer': '2.1.1',
+            'node_modules/socket.io-parser': '4.2.6'
+          };
+          for (const [name, expected] of Object.entries(checks)) {
+            const actual = lock.packages[name]?.version;
+            if (actual !== expected) {
+              console.error(`${name}=${actual || 'missing'}, expected ${expected}`);
+              process.exit(1);
+            }
+          }
+          NODE
+
+      - name: Remove duplicate pnpm lockfile
+        run: rm -f client/pnpm-lock.yaml
+
+      - name: Commit refreshed lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/package-lock.json backend/package-lock.json client/pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "Lockfiles already current"
+          else
+            git commit -m "[lockfiles-refreshed] Refresh dependency lockfiles"
+            git push
+          fi
