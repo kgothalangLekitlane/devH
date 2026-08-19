@@ -3,15 +3,20 @@ name: Refresh deployment lockfiles
 on:
   push:
     branches: [codex/fix-deployments]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   refresh:
+    if: ${{ !contains(github.event.head_commit.message || github.event.pull_request.title, 'refresh npm lockfiles') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -28,4 +33,4 @@ jobs:
           git rm -f .github/workflows/refresh-fix-lockfiles.yml
           git add client/package-lock.json backend/package-lock.json
           git commit -m "fix: refresh npm lockfiles for deployment"
-          git push
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
