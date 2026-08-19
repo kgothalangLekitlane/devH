@@ -1,10 +1,17 @@
 const express = require("express");
 const router = express.Router();
-const { getUsers, getUserById, searchCandidates } = require("../controllers/userController");
+const upload = require("../middleware/upload");
+const { getUsers, getUserById, searchCandidates, updateMyProfile } = require("../controllers/userController");
 const authenticate = require("../middleware/authMiddleware");
 
 router.get("/", authenticate, getUsers);
 router.get("/search", authenticate, searchCandidates);
 router.get("/:id", getUserById);
+router.put("/me", authenticate, (req, res, next) => {
+  upload.single("profile")(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || "Invalid file upload" });
+    next();
+  });
+}, updateMyProfile);
 
 module.exports = router;
