@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export default function LoginPage() {
-  const [form, setForm] = useState({ email: "", password: "", remember: false });
+  const [form, setForm] = useState({ identifier: "", password: "", remember: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -30,8 +30,8 @@ export default function LoginPage() {
     if (loading) return;
 
     setError("");
-    if (!form.email || !form.password) {
-      setError("Please fill in all fields.");
+    if (!form.identifier.trim() || !form.password) {
+      setError("Please enter your username/email and password.");
       return;
     }
 
@@ -41,13 +41,13 @@ export default function LoginPage() {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email, password: form.password }),
+        body: JSON.stringify({ identifier: form.identifier.trim(), password: form.password }),
       });
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || "Invalid email or password.");
+        throw new Error(data.error || data.message || "Invalid username/email or password.");
       }
 
       if (!data.token || !data.user) {
@@ -77,12 +77,12 @@ export default function LoginPage() {
         <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="john@example.com" value={form.email} onChange={handleChange} required />
+              <Label htmlFor="identifier">Username or Email</Label>
+              <Input id="identifier" type="text" autoComplete="username" placeholder="username or john@example.com" value={form.identifier} onChange={handleChange} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={form.password} onChange={handleChange} required />
+              <Input id="password" type="password" autoComplete="current-password" value={form.password} onChange={handleChange} required />
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
