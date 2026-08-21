@@ -54,13 +54,23 @@ const registerUser = async (req, res) => {
 
 const loginUser = async (req, res) => {
   try {
-    const normalizedEmail = String(req.body.email || "").trim().toLowerCase();
+    const identifier = String(req.body.identifier ?? req.body.email ?? "").trim();
     const password = req.body.password;
-    if (!normalizedEmail || !password) return res.status(400).json({ error: "Email and password are required" });
 
-    const user = await User.findOne({ email: normalizedEmail }).select("+password");
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: "Invalid email or password" });
+    if (!identifier || !password) {
+      return res.status(400).json({ error: "Username/email and password are required" });
+    }
+
+    const normalizedIdentifier = identifier.toLowerCase();
+    const user = await User.findOne({
+      $or: [
+        { email: normalizedIdentifier },
+        { username: identifier },
+      ],
+    }).select("+password");
+
+    if (!user || !(await bcrypt.compare(String(password), user.password))) {
+      return res.status(401).json({ error: "Invalid username/email or password" });
     }
 
     const token = jwt.sign({ id: user._id }, getJwtSecret(), { expiresIn: "2h" });
