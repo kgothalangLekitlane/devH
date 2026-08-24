@@ -44,6 +44,10 @@ const rateLimit = ({ windowMs, max }) => (req, res, next) => {
   next();
 };
 
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "ok", service: "devheaven-api", message: "DevHeaven API is running" });
+});
+
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", uptime: process.uptime() }));
 app.get("/health/db", (req, res) => {
   const connected = mongoose.connection.readyState === 1;
