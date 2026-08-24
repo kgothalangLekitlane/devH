@@ -18,7 +18,7 @@ if (missingEnv.length) {
 }
 
 const app = express();
-const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+const clientUrl = process.env.CLIENT_URL || "https://dev-h-qzun.vercel.app";
 const PORT = Number(process.env.PORT) || 5000;
 
 app.disable("x-powered-by");
