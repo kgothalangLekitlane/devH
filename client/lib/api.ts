@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com").replace(/\/$/, "");
 export const assetUrl = (value?: string | null) => !value ? "" : value.startsWith("http") ? value : `${API_URL}${value}`;
 
 async function request(path: string, options: RequestInit = {}) {
