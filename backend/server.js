@@ -18,12 +18,32 @@ if (missingEnv.length) {
 }
 
 const app = express();
-const clientUrl = process.env.CLIENT_URL || "https://dev-h-qzun.vercel.app";
+const configuredClientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "")
+  .split(",")
+  .map((url) => url.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+// Keep both current DevHeaven Vercel production domains during the transition.
+const allowedOrigins = new Set([
+  "https://dev-h-qzun.vercel.app",
+  "https://dev-h-drab.vercel.app",
+  ...configuredClientUrls,
+]);
+
+const isAllowedOrigin = (origin) => !origin || allowedOrigins.has(origin.replace(/\/$/, ""));
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error("CORS origin not allowed"));
+  },
+  credentials: true,
+};
+
 const PORT = Number(process.env.PORT) || 5000;
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
-app.use(cors({ origin: clientUrl, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "100kb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), { maxAge: "7d", immutable: false }));
 
@@ -75,7 +95,13 @@ app.use((err, req, res, next) => {
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: clientUrl, credentials: true },
+  cors: {
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) return callback(null, true);
+      return callback(new Error("CORS origin not allowed"));
+    },
+    credentials: true,
+  },
 });
 
 io.use((socket, next) => {
