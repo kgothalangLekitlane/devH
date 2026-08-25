@@ -74,7 +74,9 @@ app.use((err, req, res, next) => {
 });
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: clientUrl, credentials: true } });
+const io = new Server(server, {
+  cors: { origin: clientUrl, credentials: true },
+});
 
 io.use((socket, next) => {
   try {
@@ -105,14 +107,20 @@ io.on("connection", (socket) => {
     socket.leave(conversationRoom(socket.user.id, userId));
   });
 
-  socket.on("sendMessage", ({ receiverId, message }) => {
+  socket.on("sendMessage", ({ receiverId, message, messageId }) => {
     if (!mongoose.Types.ObjectId.isValid(receiverId) || typeof message !== "string") return;
     if (receiverId === String(socket.user.id)) return;
+    if (messageId && !mongoose.Types.ObjectId.isValid(messageId)) return;
+
     const text = message.trim();
     if (!text || text.length > 5000) return;
+
     const room = conversationRoom(socket.user.id, receiverId);
     if (!socket.rooms.has(room)) return;
+
     io.to(room).emit("receiveMessage", {
+      _id: messageId || undefined,
+      messageId: messageId || undefined,
       message: text,
       senderId: socket.user.id,
       receiverId,
