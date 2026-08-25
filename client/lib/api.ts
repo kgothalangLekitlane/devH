@@ -16,6 +16,7 @@ export async function registerUser(data: FormData | Record<string, unknown>) {
 export async function loginUser(data: { email: string; password: string }) {
   return request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 }
+export async function fetchCurrentUser(token: string) { return request("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } }); }
 const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
 export async function fetchUsers(token: string) { return request("/api/users", { headers: authHeaders(token) }); }
 export async function fetchUserById(id: string) { return request(`/api/users/${encodeURIComponent(id)}`); }
