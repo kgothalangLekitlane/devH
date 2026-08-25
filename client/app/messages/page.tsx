@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
-import { Code2, Send } from "lucide-react"
+import { Code2, Send, Search } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com"
 
@@ -22,6 +22,7 @@ export default function MessagesPage() {
   const [selected, setSelected] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [text, setText] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [socketReady, setSocketReady] = useState(false)
@@ -30,14 +31,26 @@ export default function MessagesPage() {
     if (!token) return
     fetchUsers(token)
       .then(list => {
-        const filtered = list.filter((u: any) => u._id !== me?.id)
+        const filtered = list.filter((u: any) => String(u._id) !== String(me?.id))
         setUsers(filtered)
         const requested = searchParams.get("user")
-        setSelected(filtered.find((u: any) => u._id === requested) || filtered[0] || null)
+        setSelected(filtered.find((u: any) => String(u._id) === String(requested)) || filtered[0] || null)
       })
       .catch(err => setError(err.message || "Unable to load users"))
       .finally(() => setLoading(false))
   }, [token, me?.id, searchParams])
+
+  const filteredUsers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return users
+    return users.filter(person => {
+      const name = `${person.firstName || ""} ${person.lastName || ""}`.toLowerCase()
+      const username = String(person.username || "").toLowerCase()
+      const email = String(person.email || "").toLowerCase()
+      const skills = Array.isArray(person.skills) ? person.skills.join(" ").toLowerCase() : String(person.skills || "").toLowerCase()
+      return name.includes(term) || username.includes(term) || email.includes(term) || skills.includes(term)
+    })
+  }, [users, searchTerm])
 
   useEffect(() => {
     if (!token || !selected) return
@@ -126,5 +139,5 @@ export default function MessagesPage() {
 
   if (!me || !token) return <div className="min-h-screen flex items-center justify-center"><Link href="/login">Sign in to message people</Link></div>
 
-  return <div className="min-h-screen bg-gray-50"><nav className="bg-white border-b"><div className="max-w-6xl mx-auto px-4 py-4"><Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl"><Code2 className="text-purple-600" />DevHeaven</Link></div></nav><main className="max-w-6xl mx-auto px-4 py-6"><Card className="h-[calc(100vh-150px)] flex overflow-hidden"><aside className="w-full md:w-80 border-r bg-white overflow-y-auto"><CardHeader><CardTitle>People</CardTitle><p className="text-xs text-gray-500">{socketReady ? "Real-time connected" : "Connecting to real-time..."}</p></CardHeader><CardContent className="p-2">{loading ? <p className="p-4 text-sm">Loading...</p> : users.map(person => <button key={person._id} onClick={() => setSelected(person)} className={`w-full flex items-center gap-3 p-3 rounded-lg text-left ${selected?._id === person._id ? "bg-purple-50" : "hover:bg-gray-50"}`}><Avatar><AvatarImage src={assetUrl(person.profileImage)} /><AvatarFallback>{person.firstName?.[0]}{person.lastName?.[0]}</AvatarFallback></Avatar><span><strong className="block">{person.firstName} {person.lastName}</strong><small className="text-gray-500">@{person.username}</small></span></button>)}</CardContent></aside><section className="flex-1 flex flex-col min-w-0">{selected ? <><header className="bg-white border-b p-4"><div className="flex items-center gap-3"><Avatar><AvatarImage src={assetUrl(selected.profileImage)} /><AvatarFallback>{selected.firstName?.[0]}{selected.lastName?.[0]}</AvatarFallback></Avatar><div><h2 className="font-semibold">{conversationTitle}</h2><p className="text-xs text-gray-500">@{selected.username}</p></div></div></header><div className="flex-1 overflow-y-auto p-4 space-y-3">{messages.length === 0 ? <p className="text-center text-gray-500 mt-10">No messages yet. Start the conversation.</p> : messages.map((message: any, index) => { const mine = String(message.senderId?._id || message.senderId) === String(me.id); return <div key={message._id || message.messageId || `${message.createdAt}-${index}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}><div className={`max-w-[75%] rounded-2xl px-4 py-2 ${mine ? "bg-purple-600 text-white" : "bg-white border"}`}><p>{message.text || message.message}</p><p className={`text-[11px] mt-1 ${mine ? "text-purple-100" : "text-gray-500"}`}>{formatRelativeTime(message.createdAt || new Date())}</p></div></div> })}</div><div className="bg-white border-t p-3 flex gap-2"><Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={`Message ${selected.firstName}...`} /><Button onClick={send} disabled={!text.trim()}><Send className="h-4 w-4" /></Button></div></> : <div className="flex-1 flex items-center justify-center text-gray-500">Select a person to start messaging.</div>}{error && <p className="p-2 text-sm text-red-600 bg-red-50">{error}</p>}</section></Card></main></div>
+  return <div className="min-h-screen bg-gray-50"><nav className="bg-white border-b"><div className="max-w-6xl mx-auto px-4 py-4"><Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl"><Code2 className="text-purple-600" />DevHeaven</Link></div></nav><main className="max-w-6xl mx-auto px-4 py-6"><Card className="h-[calc(100vh-150px)] flex overflow-hidden"><aside className="w-full md:w-80 border-r bg-white overflow-y-auto"><CardHeader><CardTitle>People</CardTitle><p className="text-xs text-gray-500">{socketReady ? "Real-time connected" : "Connecting to real-time..."}</p><div className="relative mt-3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" /><Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search people..." className="pl-9" /></div></CardHeader><CardContent className="p-2">{loading ? <p className="p-4 text-sm">Loading...</p> : filteredUsers.length === 0 ? <p className="p-4 text-sm text-gray-500">No people found.</p> : filteredUsers.map(person => <button key={person._id} onClick={() => setSelected(person)} className={`w-full flex items-center gap-3 p-3 rounded-lg text-left ${selected?._id === person._id ? "bg-purple-50" : "hover:bg-gray-50"}`}><Avatar><AvatarImage src={assetUrl(person.profileImage)} /><AvatarFallback>{person.firstName?.[0]}{person.lastName?.[0]}</AvatarFallback></Avatar><span><strong className="block">{person.firstName} {person.lastName}</strong><small className="text-gray-500">@{person.username}</small></span></button>)}</CardContent></aside><section className="flex-1 flex flex-col min-w-0">{selected ? <><header className="bg-white border-b p-4"><div className="flex items-center gap-3"><Avatar><AvatarImage src={assetUrl(selected.profileImage)} /><AvatarFallback>{selected.firstName?.[0]}{selected.lastName?.[0]}</AvatarFallback></Avatar><div><h2 className="font-semibold">{conversationTitle}</h2><p className="text-xs text-gray-500">@{selected.username}</p></div></div></header><div className="flex-1 overflow-y-auto p-4 space-y-3">{messages.length === 0 ? <p className="text-center text-gray-500 mt-10">No messages yet. Start the conversation.</p> : messages.map((message: any, index) => { const mine = String(message.senderId?._id || message.senderId) === String(me.id); return <div key={message._id || message.messageId || `${message.createdAt}-${index}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}><div className={`max-w-[75%] rounded-2xl px-4 py-2 ${mine ? "bg-purple-600 text-white" : "bg-white border"}`}><p>{message.text || message.message}</p><p className={`text-[11px] mt-1 ${mine ? "text-purple-100" : "text-gray-500"}`}>{formatRelativeTime(message.createdAt || new Date())}</p></div></div> })}</div><div className="bg-white border-t p-3 flex gap-2"><Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={`Message ${selected.firstName}...`} /><Button onClick={send} disabled={!text.trim()}><Send className="h-4 w-4" /></Button></div></> : <div className="flex-1 flex items-center justify-center text-gray-500">Select a person to start messaging.</div>}{error && <p className="p-2 text-sm text-red-600 bg-red-50">{error}</p>}</section></Card></main></div>
 }
