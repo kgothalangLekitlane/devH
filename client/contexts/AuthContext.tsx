@@ -14,7 +14,12 @@ interface User {
   location?: string;
   experience?: number;
   timezone?: string;
-  socialLinks?: { github?: string; linkedin?: string; twitter?: string };
+  socialLinks?: {
+    github?: string;
+    linkedin?: string;
+    twitter?: string;
+    website?: string;
+  };
   createdAt?: string;
 }
 
@@ -46,8 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedToken = localStorage.getItem('authToken');
         if (!storedToken) return;
 
-        // Never trust cached profile data as the source of identity.
-        // Resolve the current user from the JWT on every app startup.
         const response = await fetchCurrentUser(storedToken);
         const currentUser = response?.user;
         if (!currentUser?.id) throw new Error('Invalid current-user response');
@@ -73,7 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = (newToken: string, newUser: User) => {
-    // Replace the complete previous session atomically.
     clearStoredSession();
     setToken(newToken);
     setUser(newUser);
