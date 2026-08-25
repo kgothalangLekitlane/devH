@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Code2, Github, Mail } from "lucide-react";
 import Link from "next/link";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com";
 
 export default function SignUpPage() {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", username: "", password: "", confirmPassword: "", terms: false });
