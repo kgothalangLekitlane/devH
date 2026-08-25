@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema({
     github: { type: String, trim: true, maxlength: 500 },
     linkedin: { type: String, trim: true, maxlength: 500 },
     twitter: { type: String, trim: true, maxlength: 500 },
+    website: { type: String, trim: true, maxlength: 500 },
   },
   createdAt: { type: Date, default: Date.now }
 })
