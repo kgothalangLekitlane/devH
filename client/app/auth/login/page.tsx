@@ -11,7 +11,7 @@ import { Code2, Github, Mail } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com";
 
 export default function LoginPage() {
   const [form, setForm] = useState({ identifier: "", password: "", remember: false });
