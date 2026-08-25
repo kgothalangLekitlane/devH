@@ -1,5 +1,6 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { fetchCurrentUser } from '../lib/api';
 
 interface User {
   id: string;
@@ -27,28 +28,53 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const clearStoredSession = () => {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('authUser');
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem('authToken');
-      const storedUser = localStorage.getItem('authUser');
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      try {
+        const storedToken = localStorage.getItem('authToken');
+        if (!storedToken) return;
+
+        // Never trust cached profile data as the source of identity.
+        // Resolve the current user from the JWT on every app startup.
+        const response = await fetchCurrentUser(storedToken);
+        const currentUser = response?.user;
+        if (!currentUser?.id) throw new Error('Invalid current-user response');
+
+        if (!cancelled) {
+          setToken(storedToken);
+          setUser(currentUser);
+          localStorage.setItem('authUser', JSON.stringify(currentUser));
+        }
+      } catch {
+        if (!cancelled) {
+          setToken(null);
+          setUser(null);
+          clearStoredSession();
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-    } catch {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('authUser');
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    restoreSession();
+    return () => { cancelled = true; };
   }, []);
 
   const login = (newToken: string, newUser: User) => {
+    // Replace the complete previous session atomically.
+    clearStoredSession();
     setToken(newToken);
     setUser(newUser);
     localStorage.setItem('authToken', newToken);
@@ -58,8 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('authUser');
+    clearStoredSession();
   };
 
   return <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>{children}</AuthContext.Provider>;
@@ -67,6 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
