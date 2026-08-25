@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/upload");
-const { getUsers, getUserById, searchCandidates, updateMyProfile } = require("../controllers/userController");
+const { getUsers, getUserById, getAvatar, searchCandidates, updateMyProfile } = require("../controllers/userController");
 const authenticate = require("../middleware/authMiddleware");
 
 router.get("/", authenticate, getUsers);
 router.get("/search", authenticate, searchCandidates);
+router.get("/:id/avatar", getAvatar);
 router.get("/:id", getUserById);
 router.put("/me", authenticate, (req, res, next) => {
   upload.single("profile")(req, res, (err) => {
