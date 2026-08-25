@@ -7,14 +7,28 @@ const publicProjection = "-password"
 
 const searchCandidates = async (req, res) => {
   try {
-    const { skill, location, experience } = req.query
+    const { q, skill, location, experience } = req.query
     const query = {}
+    const text = String(q || "").trim()
+
+    if (text) {
+      const pattern = { $regex: escapeRegex(text), $options: "i" }
+      query.$or = [
+        { firstName: pattern },
+        { lastName: pattern },
+        { username: pattern },
+        { email: pattern },
+        { skills: pattern },
+      ]
+    }
     if (skill) query.skills = { $regex: escapeRegex(String(skill)), $options: "i" }
     if (location) query.location = { $regex: escapeRegex(String(location)), $options: "i" }
     if (experience) query.experience = { $gte: Number(experience) }
+
     const candidates = await User.find(query, publicProjection).sort({ createdAt: -1 }).limit(50)
     res.json({ candidates })
   } catch (err) {
+    console.error("Search users error:", err)
     res.status(400).json({ message: err.message })
   }
 }
