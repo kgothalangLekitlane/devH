@@ -13,7 +13,7 @@ const publicUser = (user) => ({
   lastName: user.lastName,
   email: user.email,
   username: user.username,
-  profileImage: user.profileImage,
+  profileImage: user.profileImage?.startsWith("gridfs:") ? `/api/users/${user._id}/avatar` : user.profileImage,
   bio: user.bio,
   skills: user.skills,
   location: user.location,
