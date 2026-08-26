@@ -1,39 +1,31 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Heart, MessageCircle, Share2, Code2, Briefcase, BookOpen, Search, Plus, Bell } from "lucide-react"
-import Link from "next/link"
-import { fetchPosts, createPost, likePost } from "@/lib/api"
-import { useAuth } from "@/contexts/AuthContext"
-import { ConnectionStatus } from "@/components/ConnectionStatus"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Heart, MessageCircle, Share2, Code2, Search, Plus, Bell } from "lucide-react";
+import Link from "next/link";
+import { fetchPosts, createPost, likePost } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
 
 export default function Dashboard() {
   const { user, token, isLoading } = useAuth();
-  const [posts, setPosts] = useState([]);
+  const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState({ title: "", content: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [connecting, setConnecting] = useState<string[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const router = useRouter();
-
-  const suggestedConnections = [
-    { name: "Emma Wilson", role: "Frontend Developer", mutual: 12 },
-    { name: "David Kim", role: "DevOps Engineer", mutual: 8 },
-    { name: "Lisa Zhang", role: "Product Manager", mutual: 15 },
-  ];
 
   const visiblePosts = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return posts;
-
     return posts.filter((post: any) => {
       const title = post.title?.toLowerCase() || "";
       const content = post.content?.toLowerCase() || "";
@@ -47,31 +39,31 @@ export default function Dashboard() {
       router.push("/auth/login");
       return;
     }
-
-    if (user) {
-      loadPosts();
-    }
+    if (user) loadPosts();
   }, [user, isLoading, router]);
 
   const loadPosts = async () => {
-    const data = await fetchPosts();
-    setPosts(data);
-    setError(""); // Clear any previous errors
+    try {
+      const data = await fetchPosts();
+      setPosts(Array.isArray(data) ? data : []);
+      setError("");
+    } catch (err) {
+      console.error(err);
+      setError("Unable to load posts.");
+    }
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !newPost.title || !newPost.content) return;
-
+    if (!token || !newPost.title.trim() || !newPost.content.trim()) return;
     setLoading(true);
     try {
       await createPost(newPost, token);
       setNewPost({ title: "", content: "" });
-      setError(""); // Clear errors on success
-      loadPosts(); // Reload posts
+      await loadPosts();
     } catch (err) {
-      setError("Unable to create post. Backend server may be offline.");
       console.error(err);
+      setError("Unable to create post.");
     } finally {
       setLoading(false);
     }
@@ -81,9 +73,10 @@ export default function Dashboard() {
     if (!token) return;
     try {
       await likePost(postId, token);
-      loadPosts(); // Reload to update like counts
+      await loadPosts();
     } catch (err) {
-      setError("Failed to like post");
+      console.error(err);
+      setError("Failed to like post.");
     }
   };
 
@@ -91,40 +84,28 @@ export default function Dashboard() {
     document.getElementById("create-post")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleComment = (postId: string) => {
-    router.push(`/messages?post=${postId}`);
-  };
+  const handleComment = (postId: string) => router.push(`/messages?post=${postId}`);
 
   const handleShare = async (postId: string) => {
     const shareUrl = `${window.location.origin}/dashboard?post=${postId}`;
-    if (navigator?.clipboard) {
+    try {
       await navigator.clipboard.writeText(shareUrl);
       setError("Share link copied to clipboard.");
-      return;
+    } catch {
+      setError(`Copy this link: ${shareUrl}`);
     }
-
-    setError(`Copy this link: ${shareUrl}`);
-  };
-
-  const handleConnect = (name: string) => {
-    if (connecting.includes(name)) return;
-    setConnecting((prev) => [...prev, name]);
-    setError(`Connection request sent to ${name}.`);
   };
 
   if (isLoading) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div>Loading...</div>
-    </div>;
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div>Loading...</div></div>;
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
+
+  const initials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` || "U";
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -134,51 +115,23 @@ export default function Dashboard() {
                 <span className="text-2xl font-bold text-gray-900">DevHeaven</span>
               </Link>
               <div className="hidden md:flex items-center space-x-6">
-                <Link href="/dashboard" className="text-purple-600 font-medium" prefetch={false}>
-                  Feed
-                </Link>
-                <Link href="/projects" className="text-gray-600 hover:text-purple-600" prefetch={false}>
-                  Projects
-                </Link>
-                <Link href="/resources" className="text-gray-600 hover:text-purple-600" prefetch={false}>
-                  Resources
-                </Link>
-                <Link href="/recruiters" className="text-gray-600 hover:text-purple-600" prefetch={false}>
-                  Jobs
-                </Link>
+                <Link href="/dashboard" className="text-purple-600 font-medium" prefetch={false}>Feed</Link>
+                <Link href="/projects" className="text-gray-600 hover:text-purple-600" prefetch={false}>Projects</Link>
+                <Link href="/resources" className="text-gray-600 hover:text-purple-600" prefetch={false}>Resources</Link>
+                <Link href="/recruiters" className="text-gray-600 hover:text-purple-600" prefetch={false}>Jobs</Link>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <ConnectionStatus />
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search developers, projects..."
-                  className="pl-10 w-64"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input placeholder="Search posts..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
-              <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={handleQuickPost}>
-                <Plus className="h-4 w-4 mr-2" />
-                Post
-              </Button>
-              <button
-                type="button"
-                aria-label="Toggle notifications"
-                onClick={() => setShowNotifications((prev) => !prev)}
-                className="text-gray-600 hover:text-purple-600"
-              >
-                <Bell className="h-6 w-6 cursor-pointer" />
-              </button>
-              <Link href="/messages" prefetch={false}>
-                <MessageCircle className="h-6 w-6 text-gray-600 cursor-pointer hover:text-purple-600" />
-              </Link>
+              <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={handleQuickPost}><Plus className="h-4 w-4 mr-2" />Post</Button>
+              <button type="button" aria-label="Toggle notifications" onClick={() => setShowNotifications((prev) => !prev)} className="text-gray-600 hover:text-purple-600"><Bell className="h-6 w-6" /></button>
+              <Link href="/messages" prefetch={false}><MessageCircle className="h-6 w-6 text-gray-600 hover:text-purple-600" /></Link>
               <Link href="/profile" prefetch={false}>
-                <Avatar className="h-8 w-8 cursor-pointer">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                  <AvatarFallback>JD</AvatarFallback>
-                </Avatar>
+                <Avatar className="h-8 w-8"><AvatarImage src={user.profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
               </Link>
             </div>
           </div>
@@ -187,288 +140,70 @@ export default function Dashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            {showNotifications && (
-              <Card className="mb-6 border-purple-200 bg-purple-50">
-                <CardContent className="pt-6 text-sm text-purple-900">
-                  Notifications are enabled. You&apos;ll be notified when someone likes or comments on your posts.
-                </CardContent>
-              </Card>
-            )}
-
+          <aside className="lg:col-span-1">
+            {showNotifications && <Card className="mb-6"><CardContent className="pt-6 text-sm text-gray-600">You&apos;ll see notifications here as real activity occurs.</CardContent></Card>}
             <Card className="mb-6" id="create-post">
               <CardHeader>
                 <div className="flex items-center space-x-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={user?.profileImage || "/placeholder.svg?height=48&width=48"} />
-                    <AvatarFallback>
-                      {user?.firstName?.[0]}{user?.lastName?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold">{user?.firstName} {user?.lastName}</h3>
-                    <p className="text-sm text-gray-600">
-                      {user?.location || "Developer"}
-                    </p>
-                  </div>
+                  <Avatar className="h-12 w-12"><AvatarImage src={user.profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
+                  <div><h3 className="font-semibold">{user.firstName} {user.lastName}</h3><p className="text-sm text-gray-600">{user.location || "Developer"}</p></div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Connections</span>
-                    <span className="font-medium">1,234</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Projects</span>
-                    <span className="font-medium">12</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Profile Views</span>
-                    <span className="font-medium">89</span>
-                  </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-gray-600">Connections</span><span className="font-medium">0</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Projects</span><span className="font-medium">0</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Profile Views</span><span className="font-medium">0</span></div>
                 </div>
               </CardContent>
             </Card>
+          </aside>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Trending Topics</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">#React</span>
-                    <Badge variant="secondary">2.1k posts</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">#TypeScript</span>
-                    <Badge variant="secondary">1.8k posts</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">#NextJS</span>
-                    <Badge variant="secondary">1.5k posts</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">#Python</span>
-                    <Badge variant="secondary">1.2k posts</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            {/* Create Post */}
+          <main className="lg:col-span-2">
             <Card className="mb-6">
               <CardContent className="pt-6">
                 <form onSubmit={handleCreatePost}>
                   <div className="flex space-x-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={user?.profileImage || "/placeholder.svg?height=40&width=40"} />
-                      <AvatarFallback>
-                        {user?.firstName?.[0]}{user?.lastName?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
+                    <Avatar className="h-10 w-10"><AvatarImage src={user.profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
                     <div className="flex-1">
-                      <Input
-                        placeholder="Post title..."
-                        value={newPost.title}
-                        onChange={(e) => setNewPost(prev => ({ ...prev, title: e.target.value }))}
-                        className="mb-3"
-                        required
-                      />
-                      <Textarea
-                        placeholder="Share your thoughts, projects, or ask questions..."
-                        className="min-h-[100px] resize-none"
-                        value={newPost.content}
-                        onChange={(e) => setNewPost(prev => ({ ...prev, content: e.target.value }))}
-                        required
-                      />
-                      <div className="flex justify-between items-center mt-4">
-                        <div className="flex space-x-2">
-                          <Badge variant="outline" className="cursor-pointer hover:bg-purple-50">
-                            <Code2 className="h-3 w-3 mr-1" />
-                            Code
-                          </Badge>
-                          <Badge variant="outline" className="cursor-pointer hover:bg-purple-50">
-                            <Briefcase className="h-3 w-3 mr-1" />
-                            Job
-                          </Badge>
-                          <Badge variant="outline" className="cursor-pointer hover:bg-purple-50">
-                            <BookOpen className="h-3 w-3 mr-1" />
-                            Resource
-                          </Badge>
-                        </div>
-                        <Button
-                          type="submit"
-                          className="bg-purple-600 hover:bg-purple-700"
-                          disabled={loading || !newPost.title || !newPost.content}
-                        >
-                          {loading ? "Posting..." : "Post"}
-                        </Button>
-                      </div>
+                      <Input placeholder="Post title..." value={newPost.title} onChange={(e) => setNewPost((prev) => ({ ...prev, title: e.target.value }))} className="mb-3" required />
+                      <Textarea placeholder="Share your thoughts, projects, or ask questions..." className="min-h-[100px] resize-none" value={newPost.content} onChange={(e) => setNewPost((prev) => ({ ...prev, content: e.target.value }))} required />
+                      <div className="flex justify-end mt-4"><Button type="submit" className="bg-purple-600 hover:bg-purple-700" disabled={loading || !newPost.title.trim() || !newPost.content.trim()}>{loading ? "Posting..." : "Post"}</Button></div>
                     </div>
                   </div>
                 </form>
-                {error && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mt-2">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm text-yellow-700">{error}</p>
+                {error && <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mt-3 text-sm text-yellow-700">{error}</div>}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-6">
+              {visiblePosts.length === 0 ? (
+                <Card><CardContent className="pt-6 text-center text-gray-500"><p>{searchTerm ? "No posts match your search yet." : "No posts yet. Be the first to share something!"}</p></CardContent></Card>
+              ) : visiblePosts.map((post: any) => (
+                <Card key={post._id}><CardContent className="pt-6">
+                  <div className="flex space-x-3">
+                    <Avatar className="h-10 w-10"><AvatarImage src={post.author?.profileImage || "/placeholder.svg"} /><AvatarFallback>{post.author?.firstName?.[0]}{post.author?.lastName?.[0]}</AvatarFallback></Avatar>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2"><h4 className="font-semibold">{post.author?.firstName} {post.author?.lastName}</h4><span className="text-gray-500 text-sm">@{post.author?.username}</span><span className="text-gray-400 text-sm">•</span><span className="text-gray-500 text-sm">{new Date(post.createdAt).toLocaleDateString()}</span></div>
+                      <h3 className="font-medium mb-2">{post.title}</h3><p className="text-gray-800 mb-3">{post.content}</p>
+                      {post.tags?.length > 0 && <div className="flex flex-wrap gap-2 mb-4">{post.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs">#{tag}</Badge>)}</div>}
+                      <div className="flex items-center space-x-6 text-gray-500">
+                        <button className="flex items-center space-x-2 hover:text-red-500" onClick={() => handleLike(post._id)}><Heart className="h-4 w-4" /><span className="text-sm">{post.likes?.length || 0}</span></button>
+                        <button className="flex items-center space-x-2 hover:text-blue-500" onClick={() => handleComment(post._id)}><MessageCircle className="h-4 w-4" /><span className="text-sm">{post.comments?.length || 0}</span></button>
+                        <button className="flex items-center space-x-2 hover:text-green-500" onClick={() => handleShare(post._id)}><Share2 className="h-4 w-4" /><span className="text-sm">Share</span></button>
                       </div>
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Posts Feed */}
-            <div className="space-y-6">
-              {visiblePosts.length === 0 ? (
-                <Card>
-                  <CardContent className="pt-6 text-center text-gray-500">
-                    <p>{searchTerm ? "No posts match your search yet." : "No posts yet. Be the first to share something!"}</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                visiblePosts.map((post: any) => (
-                  <Card key={post._id}>
-                    <CardContent className="pt-6">
-                      <div className="flex space-x-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={post.author?.profileImage || "/placeholder.svg"} />
-                          <AvatarFallback>
-                            {post.author?.firstName?.[0]}{post.author?.lastName?.[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <h4 className="font-semibold">
-                              {post.author?.firstName} {post.author?.lastName}
-                            </h4>
-                            <span className="text-gray-500 text-sm">@{post.author?.username}</span>
-                            <span className="text-gray-400 text-sm">•</span>
-                            <span className="text-gray-500 text-sm">
-                              {new Date(post.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <h3 className="font-medium mb-2">{post.title}</h3>
-                          <p className="text-gray-800 mb-3">{post.content}</p>
-                          {post.tags && post.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-4">
-                              {post.tags.map((tag: string) => (
-                                <Badge key={tag} variant="secondary" className="text-xs">
-                                  #{tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-6 text-gray-500">
-                            <button
-                              className="flex items-center space-x-2 hover:text-red-500 transition-colors"
-                              onClick={() => handleLike(post._id)}
-                            >
-                              <Heart className="h-4 w-4" />
-                              <span className="text-sm">{post.likes?.length || 0}</span>
-                            </button>
-                            <button
-                              className="flex items-center space-x-2 hover:text-blue-500 transition-colors"
-                              onClick={() => handleComment(post._id)}
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                              <span className="text-sm">{post.comments?.length || 0}</span>
-                            </button>
-                            <button
-                              className="flex items-center space-x-2 hover:text-green-500 transition-colors"
-                              onClick={() => handleShare(post._id)}
-                            >
-                              <Share2 className="h-4 w-4" />
-                              <span className="text-sm">Share</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
+                </CardContent></Card>
+              ))}
             </div>
-          </div>
+          </main>
 
-          {/* Right Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Suggested Connections</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {suggestedConnections.map((person, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={`/placeholder.svg?height=32&width=32&query=${person.name}`} />
-                          <AvatarFallback>
-                            {person.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium">{person.name}</p>
-                          <p className="text-xs text-gray-500">{person.role}</p>
-                          <p className="text-xs text-gray-400">{person.mutual} mutual connections</p>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleConnect(person.name)}
-                        disabled={connecting.includes(person.name)}
-                      >
-                        {connecting.includes(person.name) ? "Requested" : "Connect"}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Recent Job Posts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { title: "Senior React Developer", company: "TechCorp", location: "Remote" },
-                    { title: "Full Stack Engineer", company: "StartupXYZ", location: "San Francisco" },
-                    { title: "DevOps Specialist", company: "CloudTech", location: "New York" },
-                  ].map((job, index) => (
-                    <div key={index} className="border-l-4 border-purple-200 pl-4">
-                      <h4 className="font-medium text-sm">{job.title}</h4>
-                      <p className="text-sm text-gray-600">{job.company}</p>
-                      <p className="text-xs text-gray-500">{job.location}</p>
-                    </div>
-                  ))}
-                </div>
-                <Button variant="outline" className="w-full mt-4 bg-transparent" onClick={() => router.push("/recruiters")}>
-                  View All Jobs
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+          <aside className="lg:col-span-1">
+            <Card><CardHeader><CardTitle className="text-lg">Your Activity</CardTitle></CardHeader><CardContent><p className="text-sm text-gray-500">Real connections, projects and profile views will appear here as you use DevHeaven.</p></CardContent></Card>
+          </aside>
         </div>
       </div>
     </div>
-  )
+  );
 }
