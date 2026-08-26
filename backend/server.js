@@ -22,16 +22,9 @@ const configuredClientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL 
   .split(",")
   .map((url) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
-const allowedOrigins = new Set([
-  "https://dev-h-qzun.vercel.app",
-  "https://dev-h-drab.vercel.app",
-  ...configuredClientUrls,
-]);
+const allowedOrigins = new Set(["https://dev-h-qzun.vercel.app", "https://dev-h-drab.vercel.app", ...configuredClientUrls]);
 const isAllowedOrigin = (origin) => !origin || allowedOrigins.has(origin.replace(/\/$/, ""));
-const corsOptions = {
-  origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")),
-  credentials: true,
-};
+const corsOptions = { origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")), credentials: true };
 const PORT = Number(process.env.PORT) || 5000;
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -75,6 +68,7 @@ app.use("/api/resources", require("./routes/resources"));
 app.use("/api/recruiters", require("./routes/recruiters"));
 app.use("/api/messages", require("./routes/messages"));
 app.use("/api/projects", require("./routes/projects"));
+app.use("/api/connections", require("./routes/connections"));
 app.use("/api", require("./routes/api"));
 
 app.use((err, req, res, next) => {
