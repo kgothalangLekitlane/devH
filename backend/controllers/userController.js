@@ -5,6 +5,12 @@ const { GridFSBucket, ObjectId } = require("mongodb")
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const publicProjection = "-password"
 
+const toPublicUser = (user) => {
+  const value = user?.toObject ? user.toObject() : { ...user }
+  if (value.profileImage?.startsWith("gridfs:")) value.profileImage = `/api/users/${value._id}/avatar`
+  return value
+}
+
 const searchCandidates = async (req, res) => {
   try {
     const { q, skill, location, experience } = req.query
@@ -18,7 +24,7 @@ const searchCandidates = async (req, res) => {
     if (location) query.location = { $regex: escapeRegex(String(location)), $options: "i" }
     if (experience) query.experience = { $gte: Number(experience) }
     const candidates = await User.find(query, publicProjection).sort({ createdAt: -1 }).limit(50)
-    res.json({ candidates })
+    res.json({ candidates: candidates.map(toPublicUser) })
   } catch (err) {
     console.error("Search users error:", err)
     res.status(400).json({ message: err.message })
@@ -28,7 +34,7 @@ const searchCandidates = async (req, res) => {
 const getUsers = async (req, res) => {
   try {
     const users = await User.find({}, publicProjection).sort({ createdAt: -1 }).limit(100)
-    res.json(users)
+    res.json(users.map(toPublicUser))
   } catch (error) {
     console.error("Get users error:", error)
     res.status(500).json({ error: "Failed to fetch users" })
@@ -40,7 +46,7 @@ const getUserById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid user ID" })
     const user = await User.findById(req.params.id, publicProjection)
     if (!user) return res.status(404).json({ error: "User not found" })
-    res.json(user)
+    res.json(toPublicUser(user))
   } catch (error) {
     console.error("Get user by ID error:", error)
     res.status(500).json({ error: "Failed to fetch user" })
@@ -59,7 +65,7 @@ const getAvatar = async (req, res) => {
     const files = await bucket.find({ _id: new ObjectId(fileId) }).toArray()
     if (!files.length) return res.status(404).json({ error: "Profile image not found" })
     res.set("Content-Type", files[0].contentType || "image/jpeg")
-    res.set("Cache-Control", "public, max-age=3600")
+    res.set("Cache-Control", "no-store")
     bucket.openDownloadStream(new ObjectId(fileId)).on("error", () => {
       if (!res.headersSent) res.status(404).end()
     }).pipe(res)
@@ -100,8 +106,7 @@ const updateMyProfile = async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.user.id, { $set: updates }, { new: true, runValidators: true }).select(publicProjection)
     if (!user) return res.status(404).json({ error: "User not found" })
-    user.profileImage = user.profileImage?.startsWith("gridfs:") ? `/api/users/${user._id}/avatar` : user.profileImage
-    res.json({ user })
+    res.json({ user: toPublicUser(user) })
   } catch (error) {
     console.error("Update profile error:", error)
     res.status(400).json({ error: error.message || "Failed to update profile" })
