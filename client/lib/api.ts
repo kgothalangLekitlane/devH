@@ -8,14 +8,8 @@ async function request(path: string, options: RequestInit = {}) {
   if (!res.ok) throw new Error(body?.error || body?.message || `Request failed (${res.status})`);
   return body;
 }
-
-export async function registerUser(data: FormData | Record<string, unknown>) {
-  const isForm = data instanceof FormData;
-  return request("/api/auth/register", { method: "POST", headers: isForm ? undefined : { "Content-Type": "application/json" }, body: isForm ? data : JSON.stringify(data) });
-}
-export async function loginUser(data: { email: string; password: string }) {
-  return request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-}
+export async function registerUser(data: FormData | Record<string, unknown>) { const isForm = data instanceof FormData; return request("/api/auth/register", { method: "POST", headers: isForm ? undefined : { "Content-Type": "application/json" }, body: isForm ? data : JSON.stringify(data) }); }
+export async function loginUser(data: { email: string; password: string }) { return request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function fetchCurrentUser(token: string) { return request("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } }); }
 const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
 export async function fetchUsers(token: string) { return request("/api/users", { headers: authHeaders(token) }); }
@@ -36,3 +30,7 @@ export async function addResource(data: Record<string, unknown>, token: string) 
 export async function fetchJobs() { return request("/api/recruiters/jobs"); }
 export async function createJob(data: Record<string, unknown>, token: string) { return request("/api/recruiters/jobs", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function addRecruiter(data: Record<string, unknown>, token: string) { return request("/api/recruiters/register", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
+export async function fetchProjects() { return request("/api/projects"); }
+export async function createProject(data: { title: string; description: string; techStack?: string[]; githubUrl?: string; liveUrl?: string }, token: string) { return request("/api/projects", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
+export async function updateProject(id: string, data: Record<string, unknown>, token: string) { return request(`/api/projects/${encodeURIComponent(id)}`, { method: "PUT", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
+export async function deleteProject(id: string, token: string) { return request(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders(token) }); }
