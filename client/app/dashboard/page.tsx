@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Heart, MessageCircle, Share2, Code2, Search, Plus, Bell } from "lucide-react";
 import Link from "next/link";
-import { fetchPosts, createPost, likePost } from "@/lib/api";
+import { fetchPosts, createPost, likePost, fetchProjects, assetUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 
 export default function Dashboard() {
   const { user, token, isLoading } = useAuth();
   const [posts, setPosts] = useState<any[]>([]);
+  const [projectCount, setProjectCount] = useState(0);
   const [newPost, setNewPost] = useState({ title: "", content: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -41,6 +42,26 @@ export default function Dashboard() {
     }
     if (user) loadPosts();
   }, [user, isLoading, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    const loadProjectCount = async () => {
+      try {
+        const body = await fetchProjects();
+        const projects = Array.isArray(body?.projects) ? body.projects : [];
+        const myId = String(user.id || user._id || "");
+        const mine = projects.filter((project: any) => {
+          const ownerId = project.owner?.id || project.owner?._id || project.userId || project.user?._id;
+          return ownerId ? String(ownerId) === myId : false;
+        });
+        setProjectCount(mine.length);
+      } catch (err) {
+        console.error("Unable to load project count", err);
+        setProjectCount(0);
+      }
+    };
+    loadProjectCount();
+  }, [user]);
 
   const loadPosts = async () => {
     try {
@@ -103,6 +124,7 @@ export default function Dashboard() {
   if (!user) return null;
 
   const initials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` || "U";
+  const profileImage = assetUrl(user.profileImage);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -131,7 +153,7 @@ export default function Dashboard() {
               <button type="button" aria-label="Toggle notifications" onClick={() => setShowNotifications((prev) => !prev)} className="text-gray-600 hover:text-purple-600"><Bell className="h-6 w-6" /></button>
               <Link href="/messages" prefetch={false}><MessageCircle className="h-6 w-6 text-gray-600 hover:text-purple-600" /></Link>
               <Link href="/profile" prefetch={false}>
-                <Avatar className="h-8 w-8"><AvatarImage src={user.profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
+                <Avatar className="h-8 w-8"><AvatarImage src={profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
               </Link>
             </div>
           </div>
@@ -145,14 +167,14 @@ export default function Dashboard() {
             <Card className="mb-6" id="create-post">
               <CardHeader>
                 <div className="flex items-center space-x-3">
-                  <Avatar className="h-12 w-12"><AvatarImage src={user.profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
+                  <Avatar className="h-12 w-12"><AvatarImage src={profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
                   <div><h3 className="font-semibold">{user.firstName} {user.lastName}</h3><p className="text-sm text-gray-600">{user.location || "Developer"}</p></div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-gray-600">Connections</span><span className="font-medium">0</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600">Projects</span><span className="font-medium">0</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Projects</span><span className="font-medium">{projectCount}</span></div>
                   <div className="flex justify-between"><span className="text-gray-600">Profile Views</span><span className="font-medium">0</span></div>
                 </div>
               </CardContent>
@@ -164,7 +186,7 @@ export default function Dashboard() {
               <CardContent className="pt-6">
                 <form onSubmit={handleCreatePost}>
                   <div className="flex space-x-3">
-                    <Avatar className="h-10 w-10"><AvatarImage src={user.profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
+                    <Avatar className="h-10 w-10"><AvatarImage src={profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar>
                     <div className="flex-1">
                       <Input placeholder="Post title..." value={newPost.title} onChange={(e) => setNewPost((prev) => ({ ...prev, title: e.target.value }))} className="mb-3" required />
                       <Textarea placeholder="Share your thoughts, projects, or ask questions..." className="min-h-[100px] resize-none" value={newPost.content} onChange={(e) => setNewPost((prev) => ({ ...prev, content: e.target.value }))} required />
@@ -182,7 +204,7 @@ export default function Dashboard() {
               ) : visiblePosts.map((post: any) => (
                 <Card key={post._id}><CardContent className="pt-6">
                   <div className="flex space-x-3">
-                    <Avatar className="h-10 w-10"><AvatarImage src={post.author?.profileImage || "/placeholder.svg"} /><AvatarFallback>{post.author?.firstName?.[0]}{post.author?.lastName?.[0]}</AvatarFallback></Avatar>
+                    <Avatar className="h-10 w-10"><AvatarImage src={assetUrl(post.author?.profileImage) || "/placeholder.svg"} /><AvatarFallback>{post.author?.firstName?.[0]}{post.author?.lastName?.[0]}</AvatarFallback></Avatar>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2"><h4 className="font-semibold">{post.author?.firstName} {post.author?.lastName}</h4><span className="text-gray-500 text-sm">@{post.author?.username}</span><span className="text-gray-400 text-sm">•</span><span className="text-gray-500 text-sm">{new Date(post.createdAt).toLocaleDateString()}</span></div>
                       <h3 className="font-medium mb-2">{post.title}</h3><p className="text-gray-800 mb-3">{post.content}</p>
