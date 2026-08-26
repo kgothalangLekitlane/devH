@@ -22,25 +22,17 @@ const configuredClientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL 
   .split(",")
   .map((url) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
-
-// Keep both current DevHeaven Vercel production domains during the transition.
 const allowedOrigins = new Set([
   "https://dev-h-qzun.vercel.app",
   "https://dev-h-drab.vercel.app",
   ...configuredClientUrls,
 ]);
-
 const isAllowedOrigin = (origin) => !origin || allowedOrigins.has(origin.replace(/\/$/, ""));
 const corsOptions = {
-  origin: (origin, callback) => {
-    if (isAllowedOrigin(origin)) return callback(null, true);
-    return callback(new Error("CORS origin not allowed"));
-  },
+  origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")),
   credentials: true,
 };
-
 const PORT = Number(process.env.PORT) || 5000;
-
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(cors(corsOptions));
@@ -64,10 +56,7 @@ const rateLimit = ({ windowMs, max }) => (req, res, next) => {
   next();
 };
 
-app.get("/", (req, res) => {
-  res.status(200).json({ status: "ok", service: "devheaven-api", message: "DevHeaven API is running" });
-});
-
+app.get("/", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", message: "DevHeaven API is running" }));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", uptime: process.uptime() }));
 app.get("/health/db", (req, res) => {
   const connected = mongoose.connection.readyState === 1;
@@ -85,6 +74,7 @@ app.use("/api/posts", require("./routes/posts"));
 app.use("/api/resources", require("./routes/resources"));
 app.use("/api/recruiters", require("./routes/recruiters"));
 app.use("/api/messages", require("./routes/messages"));
+app.use("/api/projects", require("./routes/projects"));
 app.use("/api", require("./routes/api"));
 
 app.use((err, req, res, next) => {
@@ -94,84 +84,33 @@ app.use((err, req, res, next) => {
 });
 
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) return callback(null, true);
-      return callback(new Error("CORS origin not allowed"));
-    },
-    credentials: true,
-  },
-});
-
+const io = new Server(server, { cors: { origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")), credentials: true } });
 io.use((socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers.authorization?.replace(/^Bearer\s+/i, "");
     if (!token) return next(new Error("Authentication required"));
     socket.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
-  } catch {
-    next(new Error("Invalid authentication token"));
-  }
+  } catch { next(new Error("Invalid authentication token")); }
 });
-
-const conversationRoom = (a, b) => {
-  const ids = [String(a), String(b)].sort();
-  return `conversation:${ids[0]}:${ids[1]}`;
-};
-
+const conversationRoom = (a, b) => { const ids = [String(a), String(b)].sort(); return `conversation:${ids[0]}:${ids[1]}`; };
 io.on("connection", (socket) => {
   socket.join(`user:${socket.user.id}`);
-
-  socket.on("joinConversation", ({ userId }) => {
-    if (!mongoose.Types.ObjectId.isValid(userId) || userId === String(socket.user.id)) return;
-    socket.join(conversationRoom(socket.user.id, userId));
-  });
-
-  socket.on("leaveConversation", ({ userId }) => {
-    if (typeof userId !== "string") return;
-    socket.leave(conversationRoom(socket.user.id, userId));
-  });
-
+  socket.on("joinConversation", ({ userId }) => { if (!mongoose.Types.ObjectId.isValid(userId) || userId === String(socket.user.id)) return; socket.join(conversationRoom(socket.user.id, userId)); });
+  socket.on("leaveConversation", ({ userId }) => { if (typeof userId !== "string") return; socket.leave(conversationRoom(socket.user.id, userId)); });
   socket.on("sendMessage", ({ receiverId, message, messageId }) => {
     if (!mongoose.Types.ObjectId.isValid(receiverId) || typeof message !== "string") return;
     if (receiverId === String(socket.user.id)) return;
     if (messageId && !mongoose.Types.ObjectId.isValid(messageId)) return;
-
     const text = message.trim();
     if (!text || text.length > 5000) return;
-
     const room = conversationRoom(socket.user.id, receiverId);
     if (!socket.rooms.has(room)) return;
-
-    io.to(room).emit("receiveMessage", {
-      _id: messageId || undefined,
-      messageId: messageId || undefined,
-      message: text,
-      senderId: socket.user.id,
-      receiverId,
-      createdAt: new Date().toISOString(),
-    });
+    io.to(room).emit("receiveMessage", { _id: messageId || undefined, messageId: messageId || undefined, message: text, senderId: socket.user.id, receiverId, createdAt: new Date().toISOString() });
   });
 });
-
 let shuttingDown = false;
-const shutdown = async (signal) => {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  console.log(`${signal} received, shutting down gracefully`);
-  server.close(async () => {
-    await mongoose.connection.close(false);
-    process.exit(0);
-  });
-  setTimeout(() => process.exit(1), 10000).unref();
-};
+const shutdown = async (signal) => { if (shuttingDown) return; shuttingDown = true; console.log(`${signal} received, shutting down gracefully`); server.close(async () => { await mongoose.connection.close(false); process.exit(0); }); setTimeout(() => process.exit(1), 10000).unref(); };
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
-
-connectDB()
-  .then(() => server.listen(PORT, () => console.log(`Server running on port ${PORT}`)))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+connectDB().then(() => server.listen(PORT, () => console.log(`Server running on port ${PORT}`))).catch((err) => { console.error(err); process.exit(1); });
