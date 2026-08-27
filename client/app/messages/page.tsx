@@ -5,13 +5,13 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { io, type Socket } from "socket.io-client"
 import { useAuth } from "@/contexts/AuthContext"
-import { fetchMessagesWithUser, fetchUsers, searchCandidates, sendMessage, assetUrl } from "@/lib/api"
+import { fetchMessagesWithUser, fetchUsers, searchCandidates, sendMessage, assetUrl, fetchConnections, requestConnection, updateConnection } from "@/lib/api"
 import { formatRelativeTime } from "@/lib/time"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
-import { Code2, Send, Search } from "lucide-react"
+import { Code2, Send, Search, UserPlus, Check, X } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com"
 
@@ -23,18 +23,39 @@ type UserSummary = {
   profileImage?: string
 }
 
+type ConnectionRecord = {
+  _id?: string
+  requester?: any
+  recipient?: any
+  status?: string
+}
+
+const idOf = (value: any) => String(value?._id || value?.id || value || "")
+
 export default function MessagesPage() {
   const { user: me, token } = useAuth()
   const searchParams = useSearchParams()
   const [users, setUsers] = useState<UserSummary[]>([])
   const [selected, setSelected] = useState<UserSummary | null>(null)
   const [messages, setMessages] = useState<any[]>([])
+  const [connections, setConnections] = useState<ConnectionRecord[]>([])
   const [text, setText] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
+  const [connectionLoading, setConnectionLoading] = useState(false)
   const [error, setError] = useState("")
   const [socketReady, setSocketReady] = useState(false)
+
+  const loadConnections = async () => {
+    if (!token) return
+    try {
+      const body = await fetchConnections(token)
+      setConnections(Array.isArray(body) ? body : (body?.connections || []))
+    } catch (err: any) {
+      setError(err.message || "Unable to load connections")
+    }
+  }
 
   useEffect(() => {
     if (!token) return
@@ -47,6 +68,7 @@ export default function MessagesPage() {
       })
       .catch(err => setError(err.message || "Unable to load users"))
       .finally(() => setLoading(false))
+    void loadConnections()
   }, [token, me?.id, searchParams])
 
   useEffect(() => {
@@ -124,6 +146,54 @@ export default function MessagesPage() {
     }
   }, [token, selected?._id, me?.id])
 
+  const selectedConnection = useMemo(() => {
+    if (!selected || !me?.id) return null
+    return connections.find(connection => {
+      const requesterId = idOf(connection.requester)
+      const recipientId = idOf(connection.recipient)
+      return (requesterId === String(me.id) && recipientId === String(selected._id)) ||
+        (requesterId === String(selected._id) && recipientId === String(me.id))
+    }) || null
+  }, [connections, selected, me?.id])
+
+  const connectionState = useMemo(() => {
+    if (!selectedConnection) return "none"
+    if (selectedConnection.status === "accepted") return "accepted"
+    if (selectedConnection.status === "rejected") return "rejected"
+    if (selectedConnection.status === "pending") {
+      return idOf(selectedConnection.recipient) === String(me?.id) ? "incoming" : "outgoing"
+    }
+    return "none"
+  }, [selectedConnection, me?.id])
+
+  const handleConnect = async () => {
+    if (!token || !selected || connectionLoading) return
+    setConnectionLoading(true)
+    setError("")
+    try {
+      await requestConnection(selected._id, token)
+      await loadConnections()
+    } catch (err: any) {
+      setError(err.message || "Unable to send connection request")
+    } finally {
+      setConnectionLoading(false)
+    }
+  }
+
+  const handleConnectionDecision = async (status: "accepted" | "rejected") => {
+    if (!token || !selectedConnection?._id || connectionLoading) return
+    setConnectionLoading(true)
+    setError("")
+    try {
+      await updateConnection(selectedConnection._id, status, token)
+      await loadConnections()
+    } catch (err: any) {
+      setError(err.message || `Unable to ${status === "accepted" ? "accept" : "reject"} connection request`)
+    } finally {
+      setConnectionLoading(false)
+    }
+  }
+
   const conversationTitle = useMemo(() => selected ? `${selected.firstName || ""} ${selected.lastName || ""}`.trim() || selected.username || "Messages" : "Messages", [selected])
 
   const send = async () => {
@@ -170,7 +240,20 @@ export default function MessagesPage() {
             </CardContent>
           </Card>
           <Card className="flex min-h-[600px] flex-col">
-            <CardHeader><CardTitle>{conversationTitle}</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>{conversationTitle}</CardTitle>
+                {selected && (
+                  <div className="flex items-center gap-2">
+                    {connectionState === "none" && <Button size="sm" onClick={() => void handleConnect()} disabled={connectionLoading}><UserPlus className="mr-2 h-4 w-4" />{connectionLoading ? "Sending…" : "Connect"}</Button>}
+                    {connectionState === "outgoing" && <Button size="sm" variant="secondary" disabled>Request Sent</Button>}
+                    {connectionState === "incoming" && <><Button size="sm" onClick={() => void handleConnectionDecision("accepted")} disabled={connectionLoading}><Check className="mr-2 h-4 w-4" />Accept</Button><Button size="sm" variant="outline" onClick={() => void handleConnectionDecision("rejected")} disabled={connectionLoading}><X className="mr-2 h-4 w-4" />Reject</Button></>}
+                    {connectionState === "accepted" && <Button size="sm" variant="secondary" disabled>Connected</Button>}
+                    {connectionState === "rejected" && <Button size="sm" onClick={() => void handleConnect()} disabled={connectionLoading}><UserPlus className="mr-2 h-4 w-4" />Connect Again</Button>}
+                  </div>
+                )}
+              </div>
+            </CardHeader>
             <CardContent className="flex flex-1 flex-col">
               <div className="flex-1 space-y-3 overflow-y-auto pb-4">{messages.map((message, index) => <div key={String(message._id || message.messageId || index)} className="rounded-lg bg-muted p-3 text-sm">{message.text}</div>)}</div>
               <div className="flex gap-2"><Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void send() }} placeholder={selected ? "Write a message…" : "Select someone to chat"} disabled={!selected} /><Button onClick={() => void send()} disabled={!selected || !text.trim()}><Send className="h-4 w-4" /></Button></div>
