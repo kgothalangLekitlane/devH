@@ -10,8 +10,8 @@ async function request(path: string, options: RequestInit = {}) {
 }
 export async function registerUser(data: FormData | Record<string, unknown>) { const isForm = data instanceof FormData; return request("/api/auth/register", { method: "POST", headers: isForm ? undefined : { "Content-Type": "application/json" }, body: isForm ? data : JSON.stringify(data) }); }
 export async function loginUser(data: { email: string; password: string }) { return request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function fetchCurrentUser(token: string) { return request("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } }); }
 const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
+export async function fetchCurrentUser(token: string) { return request("/api/auth/me", { headers: authHeaders(token) }); }
 export async function fetchUsers(token: string) { return request("/api/users", { headers: authHeaders(token) }); }
 export async function fetchUserById(id: string) { return request(`/api/users/${encodeURIComponent(id)}`); }
 export async function recordProfileView(id: string, token: string) { return request(`/api/users/${encodeURIComponent(id)}/view`, { method: "POST", headers: authHeaders(token) }); }
@@ -29,6 +29,9 @@ export async function markConversationRead(userId: string, token: string) { retu
 export async function fetchMessagesWithUser(userId: string, token: string, page = 1, limit = 100) { return request(`/api/messages/${encodeURIComponent(userId)}?page=${page}&limit=${limit}`, { headers: authHeaders(token) }); }
 export async function sendMessage(data: { receiverId: string; text: string }, token: string) { return request("/api/messages", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function postMessage(data: { receiverId: string; text: string }, token: string) { return sendMessage(data, token); }
+export async function fetchNotifications(token: string, limit = 30) { return request(`/api/notifications?limit=${limit}`, { headers: authHeaders(token) }); }
+export async function markNotificationRead(id: string, token: string) { return request(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH", headers: authHeaders(token) }); }
+export async function markAllNotificationsRead(token: string) { return request("/api/notifications/read-all", { method: "PATCH", headers: authHeaders(token) }); }
 export async function fetchRecruiters() { return request("/api/recruiters"); }
 export async function fetchResources() { return request("/api/resources"); }
 export async function addResource(data: Record<string, unknown>, token: string) { return request("/api/resources", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
