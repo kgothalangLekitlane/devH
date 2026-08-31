@@ -22,7 +22,11 @@ const configuredClientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL 
   .split(",")
   .map((url) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
-const allowedOrigins = new Set(configuredClientUrls);
+const defaultClientUrls = [
+  "https://dev-h-drab.vercel.app",
+  "https://dev-h-qzun.vercel.app",
+];
+const allowedOrigins = new Set(configuredClientUrls.length ? configuredClientUrls : defaultClientUrls);
 const isAllowedOrigin = (origin) => !origin || allowedOrigins.has(origin.replace(/\/$/, ""));
 const corsOptions = {
   origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")),
@@ -140,23 +144,8 @@ aio.on("connection", (socket) => {
 });
 
 let shuttingDown = false;
-const shutdown = async (signal) => {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  console.log(`${signal} received, shutting down gracefully`);
-  server.close(async () => {
-    await mongoose.connection.close(false);
-    process.exit(0);
-  });
-  setTimeout(() => process.exit(1), 10000).unref();
-};
-
+const shutdown = async (signal) => { if (shuttingDown) return; shuttingDown = true; console.log(`${signal} received, shutting down gracefully`); server.close(async () => { await mongoose.connection.close(false); process.exit(0); }); setTimeout(() => process.exit(1), 10000).unref(); };
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-connectDB()
-  .then(() => server.listen(PORT, () => console.log(`Server running on port ${PORT}`)))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+connectDB().then(() => server.listen(PORT, () => console.log(`Server running on port ${PORT}`))).catch((err) => { console.error(err); process.exit(1); });
