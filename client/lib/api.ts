@@ -21,7 +21,11 @@ export async function fetchPosts(page = 1, limit = 20) { const body = await requ
 export async function createPost(data: { title: string; content: string; tags?: string[] }, token: string) { return request("/api/posts", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function likePost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/like`, { method: "POST", headers: authHeaders(token) }); }
 export async function addComment(postId: string, text: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/comments`, { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); }
+export async function deletePost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE", headers: authHeaders(token) }); }
+export async function deleteComment(postId: string, commentId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { method: "DELETE", headers: authHeaders(token) }); }
 export async function fetchMessages(token: string, page = 1, limit = 100) { return request(`/api/messages?page=${page}&limit=${limit}`, { headers: authHeaders(token) }); }
+export async function fetchUnreadMessageCount(token: string) { return request("/api/messages/unread/count", { headers: authHeaders(token) }); }
+export async function markConversationRead(userId: string, token: string) { return request(`/api/messages/${encodeURIComponent(userId)}/read`, { method: "PATCH", headers: authHeaders(token) }); }
 export async function fetchMessagesWithUser(userId: string, token: string, page = 1, limit = 100) { return request(`/api/messages/${encodeURIComponent(userId)}?page=${page}&limit=${limit}`, { headers: authHeaders(token) }); }
 export async function sendMessage(data: { receiverId: string; text: string }, token: string) { return request("/api/messages", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function postMessage(data: { receiverId: string; text: string }, token: string) { return sendMessage(data, token); }
