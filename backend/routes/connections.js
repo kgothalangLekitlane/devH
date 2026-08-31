@@ -48,9 +48,19 @@ router.post("/:userId", authenticate, async (req, res) => {
         { requester: userId, recipient: req.user.id },
       ],
     });
-    if (existing) return res.status(409).json({ error: "A connection request already exists", connection: existing });
 
-    const connection = await Connection.create({ requester: req.user.id, recipient: userId });
+    if (existing) {
+      if (existing.status === "rejected") {
+        existing.requester = req.user.id;
+        existing.recipient = userId;
+        existing.status = "pending";
+        await existing.save();
+        return res.status(200).json({ connection: existing });
+      }
+      return res.status(409).json({ error: "A connection request already exists", connection: existing });
+    }
+
+    const connection = await Connection.create({ requester: req.user.id, recipient: userId, status: "pending" });
     res.status(201).json({ connection });
   } catch (error) {
     console.error("Create connection error:", error);
@@ -71,6 +81,7 @@ router.patch("/:id", authenticate, async (req, res) => {
 
     if (!isRequester && !isRecipient) return res.status(403).json({ error: "Not authorized" });
     if (!["accepted", "rejected"].includes(status)) return res.status(400).json({ error: "Status must be accepted or rejected" });
+    if (connection.status !== "pending") return res.status(409).json({ error: "This connection request is no longer pending" });
     if (status === "accepted" && !isRecipient) return res.status(403).json({ error: "Only the recipient can accept a request" });
 
     connection.status = status;
