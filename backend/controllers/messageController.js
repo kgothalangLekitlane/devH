@@ -1,6 +1,23 @@
 const mongoose = require("mongoose")
 const Message = require("../models/Message")
 const User = require("../models/User")
+const Notification = require("../models/Notification")
+
+const createMessageNotification = async ({ recipient, sender, link }) => {
+  if (!recipient || String(recipient) === String(sender)) return
+  try {
+    await Notification.create({
+      recipient,
+      sender,
+      type: "message",
+      text: "sent you a message",
+      link,
+    })
+  } catch (error) {
+    // Notification failure must never prevent the message itself from being sent.
+    console.error("Create message notification error:", error)
+  }
+}
 
 const getMessages = async (req, res) => {
   try {
@@ -97,6 +114,12 @@ const postMessage = async (req, res) => {
     const message = await Message.create({ senderId, receiverId, text: trimmedText })
     await message.populate("senderId", "firstName lastName username profileImage")
     await message.populate("receiverId", "firstName lastName username profileImage")
+
+    await createMessageNotification({
+      recipient: receiverId,
+      sender: senderId,
+      link: `/messages?user=${receiverId}`,
+    })
 
     res.status(201).json({ message: "Message sent", chat: message })
   } catch (error) {
