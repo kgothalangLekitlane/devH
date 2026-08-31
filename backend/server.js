@@ -22,22 +22,16 @@ const configuredClientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL 
   .split(",")
   .map((url) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
-const defaultClientUrls = [
-  "https://dev-h-drab.vercel.app",
-  "https://dev-h-qzun.vercel.app",
-];
+const defaultClientUrls = ["https://dev-h-drab.vercel.app", "https://dev-h-qzun.vercel.app"];
 const allowedOrigins = new Set(configuredClientUrls.length ? configuredClientUrls : defaultClientUrls);
 const isAllowedOrigin = (origin) => !origin || allowedOrigins.has(origin.replace(/\/$/, ""));
-const corsOptions = {
-  origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")),
-  credentials: true,
-};
+const corsOptions = { origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")), credentials: true };
 const PORT = Number(process.env.PORT) || 5000;
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "100kb" }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads"), { maxAge: "7d", immutable: false }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), { maxAge: "7d" }));
 
 const buckets = new Map();
 const rateLimit = ({ windowMs, max }) => (req, res, next) => {
@@ -86,13 +80,10 @@ app.use((err, req, res, next) => {
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")),
-    credentials: true,
-  },
+  cors: { origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")), credentials: true },
 });
 
-aio.use((socket, next) => {
+io.use((socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers.authorization?.replace(/^Bearer\s+/i, "");
     if (!token) return next(new Error("Authentication required"));
@@ -108,7 +99,7 @@ const conversationRoom = (a, b) => {
   return `conversation:${ids[0]}:${ids[1]}`;
 };
 
-aio.on("connection", (socket) => {
+io.on("connection", (socket) => {
   socket.join(`user:${socket.user.id}`);
 
   socket.on("joinConversation", ({ userId } = {}) => {
@@ -125,26 +116,22 @@ aio.on("connection", (socket) => {
     if (!mongoose.Types.ObjectId.isValid(receiverId) || typeof message !== "string") return;
     if (receiverId === String(socket.user.id)) return;
     if (messageId && !mongoose.Types.ObjectId.isValid(messageId)) return;
-
     const text = message.trim();
     if (!text || text.length > 5000) return;
-
     const room = conversationRoom(socket.user.id, receiverId);
     if (!socket.rooms.has(room)) return;
-
-    io.to(room).emit("receiveMessage", {
-      _id: messageId || undefined,
-      messageId: messageId || undefined,
-      message: text,
-      senderId: socket.user.id,
-      receiverId,
-      createdAt: new Date().toISOString(),
-    });
+    io.to(room).emit("receiveMessage", { _id: messageId || undefined, messageId: messageId || undefined, message: text, senderId: socket.user.id, receiverId, createdAt: new Date().toISOString() });
   });
 });
 
 let shuttingDown = false;
-const shutdown = async (signal) => { if (shuttingDown) return; shuttingDown = true; console.log(`${signal} received, shutting down gracefully`); server.close(async () => { await mongoose.connection.close(false); process.exit(0); }); setTimeout(() => process.exit(1), 10000).unref(); };
+const shutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down gracefully`);
+  server.close(async () => { await mongoose.connection.close(false); process.exit(0); });
+  setTimeout(() => process.exit(1), 10000).unref();
+};
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
