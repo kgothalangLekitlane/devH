@@ -14,6 +14,7 @@ export async function fetchCurrentUser(token: string) { return request("/api/aut
 const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
 export async function fetchUsers(token: string) { return request("/api/users", { headers: authHeaders(token) }); }
 export async function fetchUserById(id: string) { return request(`/api/users/${encodeURIComponent(id)}`); }
+export async function recordProfileView(id: string, token: string) { return request(`/api/users/${encodeURIComponent(id)}/view`, { method: "POST", headers: authHeaders(token) }); }
 export async function updateMyProfile(data: FormData, token: string) { return request("/api/users/me", { method: "PUT", headers: authHeaders(token), body: data }); }
 export async function searchCandidates(query: string, token: string) { return request(`/api/users/search?q=${encodeURIComponent(query)}`, { headers: authHeaders(token) }); }
 export async function fetchPosts(page = 1, limit = 20) { const body = await request(`/api/posts?page=${page}&limit=${limit}`); return body.posts || body; }
