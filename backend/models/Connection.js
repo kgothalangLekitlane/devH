@@ -10,5 +10,7 @@ const connectionSchema = new mongoose.Schema(
 );
 
 connectionSchema.index({ requester: 1, recipient: 1 }, { unique: true });
+connectionSchema.index({ recipient: 1, status: 1, updatedAt: -1 });
+connectionSchema.index({ requester: 1, status: 1, updatedAt: -1 });
 
 module.exports = mongoose.model("Connection", connectionSchema);
