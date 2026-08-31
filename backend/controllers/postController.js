@@ -1,13 +1,23 @@
 const Post = require("../models/Post")
+const Notification = require("../models/Notification")
 const mongoose = require("mongoose")
+
+const createNotification = async ({ recipient, sender, type, text, link }) => {
+  if (!recipient || String(recipient) === String(sender)) return
+  try {
+    await Notification.create({ recipient, sender, type, text, link })
+  } catch (error) {
+    console.error("Create notification error:", error)
+  }
+}
 
 const getPosts = async (req, res) => {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1)
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 50)
     const posts = await Post.find()
-      .populate("author", "firstName lastName username")
-      .populate("comments.user", "firstName lastName username")
+      .populate("author", "firstName lastName username profileImage")
+      .populate("comments.user", "firstName lastName username profileImage")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -26,7 +36,7 @@ const createPost = async (req, res) => {
     if (title.length > 200 || content.length > 20000) return res.status(400).json({ error: "Post is too long" })
 
     const post = await Post.create({ title, content, author: req.user.id, tags })
-    await post.populate("author", "firstName lastName username")
+    await post.populate("author", "firstName lastName username profileImage")
     res.status(201).json({ message: "Post created", post })
   } catch (error) {
     console.error("Create post error:", error)
@@ -38,8 +48,8 @@ const getPost = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid post ID" })
     const post = await Post.findById(req.params.id)
-      .populate("author", "firstName lastName username")
-      .populate("comments.user", "firstName lastName username")
+      .populate("author", "firstName lastName username profileImage")
+      .populate("comments.user", "firstName lastName username profileImage")
     if (!post) return res.status(404).json({ error: "Post not found" })
     res.json(post)
   } catch (error) {
@@ -61,10 +71,14 @@ const likePost = async (req, res) => {
       postId,
       hasLiked ? { $pull: { likes: userId } } : { $addToSet: { likes: userId } },
       { new: true }
-    ).select("likes")
+    ).select("likes author")
 
+    if (!hasLiked) {
+      await createNotification({ recipient: post.author, sender: userId, type: "like", text: "liked your post", link: `/dashboard?post=${postId}` })
+    }
     res.json({ message: hasLiked ? "Post unliked" : "Post liked", likes: updated.likes.length })
   } catch (error) {
+    console.error("Like post error:", error)
     res.status(500).json({ error: "Failed to like post" })
   }
 }
@@ -80,9 +94,11 @@ const addComment = async (req, res) => {
     if (!post) return res.status(404).json({ error: "Post not found" })
     post.comments.push({ user: req.user.id, text })
     await post.save()
-    await post.populate("comments.user", "firstName lastName username")
+    await createNotification({ recipient: post.author, sender: req.user.id, type: "comment", text: "commented on your post", link: `/dashboard?post=${postId}` })
+    await post.populate("comments.user", "firstName lastName username profileImage")
     res.status(201).json({ message: "Comment added", comment: post.comments[post.comments.length - 1] })
   } catch (error) {
+    console.error("Add comment error:", error)
     res.status(500).json({ error: "Failed to add comment" })
   }
 }
@@ -91,11 +107,9 @@ const deletePost = async (req, res) => {
   try {
     const postId = req.params.id
     if (!mongoose.Types.ObjectId.isValid(postId)) return res.status(400).json({ error: "Invalid post ID" })
-
     const post = await Post.findById(postId).select("author")
     if (!post) return res.status(404).json({ error: "Post not found" })
     if (String(post.author) !== String(req.user.id)) return res.status(403).json({ error: "You can only delete your own posts" })
-
     await Post.findByIdAndDelete(postId)
     res.json({ message: "Post deleted", postId })
   } catch (error) {
@@ -107,16 +121,12 @@ const deletePost = async (req, res) => {
 const deleteComment = async (req, res) => {
   try {
     const { id: postId, commentId } = req.params
-    if (!mongoose.Types.ObjectId.isValid(postId) || !mongoose.Types.ObjectId.isValid(commentId)) {
-      return res.status(400).json({ error: "Invalid post or comment ID" })
-    }
-
+    if (!mongoose.Types.ObjectId.isValid(postId) || !mongoose.Types.ObjectId.isValid(commentId)) return res.status(400).json({ error: "Invalid post or comment ID" })
     const post = await Post.findById(postId).select("comments")
     if (!post) return res.status(404).json({ error: "Post not found" })
     const comment = post.comments.id(commentId)
     if (!comment) return res.status(404).json({ error: "Comment not found" })
     if (String(comment.user) !== String(req.user.id)) return res.status(403).json({ error: "You can only delete your own comments" })
-
     comment.deleteOne()
     await post.save()
     res.json({ message: "Comment deleted", commentId })
