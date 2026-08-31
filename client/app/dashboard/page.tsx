@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Heart, MessageCircle, Share2, Code2, Search, Plus, Bell } from "lucide-react";
 import Link from "next/link";
-import { fetchPosts, createPost, likePost, fetchProjects, fetchUserById, assetUrl } from "@/lib/api";
+import { fetchPosts, createPost, likePost, fetchProjects, fetchUserById, assetUrl, fetchUnreadMessageCount } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [posts, setPosts] = useState<any[]>([]);
   const [projectCount, setProjectCount] = useState(0);
   const [profileViewCount, setProfileViewCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [newPost, setNewPost] = useState({ title: "", content: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -37,10 +38,7 @@ export default function Dashboard() {
   }, [posts, searchTerm]);
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push("/auth/login");
-      return;
-    }
+    if (!isLoading && !user) { router.push("/auth/login"); return; }
     if (user) loadPosts();
   }, [user, isLoading, router]);
 
@@ -59,71 +57,55 @@ export default function Dashboard() {
         setProfileViewCount(Number(currentUser?.profileViewCount) || 0);
       } catch (err) {
         console.error("Unable to load dashboard stats", err);
-        setProjectCount(0);
-        setProfileViewCount(0);
+        setProjectCount(0); setProfileViewCount(0);
       }
     };
     loadStats();
   }, [user]);
 
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    const loadUnread = async () => {
+      try {
+        const body = await fetchUnreadMessageCount(token);
+        if (active) setUnreadMessages(Math.max(0, Number(body?.count) || 0));
+      } catch (err) { console.error("Unable to load unread messages", err); }
+    };
+    void loadUnread();
+    const timer = window.setInterval(loadUnread, 15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [token]);
+
   const loadPosts = async () => {
-    try {
-      const data = await fetchPosts();
-      setPosts(Array.isArray(data) ? data : []);
-      setError("");
-    } catch (err) {
-      console.error(err);
-      setError("Unable to load posts.");
-    }
+    try { const data = await fetchPosts(); setPosts(Array.isArray(data) ? data : []); setError(""); }
+    catch (err) { console.error(err); setError("Unable to load posts."); }
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !newPost.title.trim() || !newPost.content.trim()) return;
     setLoading(true);
-    try {
-      await createPost(newPost, token);
-      setNewPost({ title: "", content: "" });
-      await loadPosts();
-    } catch (err) {
-      console.error(err);
-      setError("Unable to create post.");
-    } finally {
-      setLoading(false);
-    }
+    try { await createPost(newPost, token); setNewPost({ title: "", content: "" }); await loadPosts(); }
+    catch (err) { console.error(err); setError("Unable to create post."); }
+    finally { setLoading(false); }
   };
 
   const handleLike = async (postId: string) => {
     if (!token) return;
-    try {
-      await likePost(postId, token);
-      await loadPosts();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to like post.");
-    }
+    try { await likePost(postId, token); await loadPosts(); }
+    catch (err) { console.error(err); setError("Failed to like post."); }
   };
 
-  const handleQuickPost = () => {
-    document.getElementById("create-post")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
+  const handleQuickPost = () => document.getElementById("create-post")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const handleComment = (postId: string) => router.push(`/messages?post=${postId}`);
-
   const handleShare = async (postId: string) => {
     const shareUrl = `${window.location.origin}/dashboard?post=${postId}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setError("Share link copied to clipboard.");
-    } catch {
-      setError(`Copy this link: ${shareUrl}`);
-    }
+    try { await navigator.clipboard.writeText(shareUrl); setError("Share link copied to clipboard."); }
+    catch { setError(`Copy this link: ${shareUrl}`); }
   };
 
-  if (isLoading) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div>Loading...</div></div>;
-  }
-
+  if (isLoading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div>Loading...</div></div>;
   if (!user) return null;
 
   const initials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` || "U";
@@ -134,11 +116,8 @@ export default function Dashboard() {
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-8">
-              <Link href="/" className="flex items-center space-x-2"><Code2 className="h-8 w-8 text-purple-600" /><span className="text-2xl font-bold text-gray-900">DevHeaven</span></Link>
-              <div className="hidden md:flex items-center space-x-6"><Link href="/dashboard" className="text-purple-600 font-medium" prefetch={false}>Feed</Link><Link href="/projects" className="text-gray-600 hover:text-purple-600" prefetch={false}>Projects</Link><Link href="/resources" className="text-gray-600 hover:text-purple-600" prefetch={false}>Resources</Link><Link href="/recruiters" className="text-gray-600 hover:text-purple-600" prefetch={false}>Jobs</Link></div>
-            </div>
-            <div className="flex items-center space-x-4"><ConnectionStatus /><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" /><Input placeholder="Search posts..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={handleQuickPost}><Plus className="h-4 w-4 mr-2" />Post</Button><button type="button" aria-label="Toggle notifications" onClick={() => setShowNotifications((prev) => !prev)} className="text-gray-600 hover:text-purple-600"><Bell className="h-6 w-6" /></button><Link href="/messages" prefetch={false}><MessageCircle className="h-6 w-6 text-gray-600 hover:text-purple-600" /></Link><Link href="/profile" prefetch={false}><Avatar className="h-8 w-8"><AvatarImage src={profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar></Link></div>
+            <div className="flex items-center space-x-8"><Link href="/" className="flex items-center space-x-2"><Code2 className="h-8 w-8 text-purple-600" /><span className="text-2xl font-bold text-gray-900">DevHeaven</span></Link><div className="hidden md:flex items-center space-x-6"><Link href="/dashboard" className="text-purple-600 font-medium" prefetch={false}>Feed</Link><Link href="/projects" className="text-gray-600 hover:text-purple-600" prefetch={false}>Projects</Link><Link href="/resources" className="text-gray-600 hover:text-purple-600" prefetch={false}>Resources</Link><Link href="/recruiters" className="text-gray-600 hover:text-purple-600" prefetch={false}>Jobs</Link></div></div>
+            <div className="flex items-center space-x-4"><ConnectionStatus /><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" /><Input placeholder="Search posts..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={handleQuickPost}><Plus className="h-4 w-4 mr-2" />Post</Button><button type="button" aria-label="Toggle notifications" onClick={() => setShowNotifications((prev) => !prev)} className="text-gray-600 hover:text-purple-600"><Bell className="h-6 w-6" /></button><Link href="/messages" prefetch={false} aria-label={unreadMessages > 0 ? `${unreadMessages} unread messages` : "Messages"} className="relative flex h-8 w-8 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-purple-600"><MessageCircle className="h-6 w-6" />{unreadMessages > 0 && <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">{unreadMessages > 99 ? "99+" : unreadMessages}</span>}</Link><Link href="/profile" prefetch={false}><Avatar className="h-8 w-8"><AvatarImage src={profileImage || "/placeholder.svg"} /><AvatarFallback>{initials}</AvatarFallback></Avatar></Link></div>
           </div>
         </div>
       </nav>
