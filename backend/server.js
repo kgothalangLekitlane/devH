@@ -23,8 +23,18 @@ const configuredClientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL 
   .map((url) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
 const defaultClientUrls = ["https://dev-h-drab.vercel.app", "https://dev-h-qzun.vercel.app"];
-const allowedOrigins = new Set(configuredClientUrls.length ? configuredClientUrls : defaultClientUrls);
-const isAllowedOrigin = (origin) => !origin || allowedOrigins.has(origin.replace(/\/$/, ""));
+const allowedOrigins = new Set([...defaultClientUrls, ...configuredClientUrls]);
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const normalized = origin.replace(/\/$/, "");
+  if (allowedOrigins.has(normalized)) return true;
+  try {
+    const url = new URL(normalized);
+    return url.hostname.endsWith(".vercel.app") && url.hostname.startsWith("dev-h-");
+  } catch {
+    return false;
+  }
+};
 const corsOptions = { origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")), credentials: true };
 const PORT = Number(process.env.PORT) || 5000;
 app.disable("x-powered-by");
