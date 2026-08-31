@@ -7,6 +7,7 @@ const getPosts = async (req, res) => {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 50)
     const posts = await Post.find()
       .populate("author", "firstName lastName username")
+      .populate("comments.user", "firstName lastName username")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -86,4 +87,43 @@ const addComment = async (req, res) => {
   }
 }
 
-module.exports = { getPosts, createPost, getPost, likePost, addComment }
+const deletePost = async (req, res) => {
+  try {
+    const postId = req.params.id
+    if (!mongoose.Types.ObjectId.isValid(postId)) return res.status(400).json({ error: "Invalid post ID" })
+
+    const post = await Post.findById(postId).select("author")
+    if (!post) return res.status(404).json({ error: "Post not found" })
+    if (String(post.author) !== String(req.user.id)) return res.status(403).json({ error: "You can only delete your own posts" })
+
+    await Post.findByIdAndDelete(postId)
+    res.json({ message: "Post deleted", postId })
+  } catch (error) {
+    console.error("Delete post error:", error)
+    res.status(500).json({ error: "Failed to delete post" })
+  }
+}
+
+const deleteComment = async (req, res) => {
+  try {
+    const { id: postId, commentId } = req.params
+    if (!mongoose.Types.ObjectId.isValid(postId) || !mongoose.Types.ObjectId.isValid(commentId)) {
+      return res.status(400).json({ error: "Invalid post or comment ID" })
+    }
+
+    const post = await Post.findById(postId).select("comments")
+    if (!post) return res.status(404).json({ error: "Post not found" })
+    const comment = post.comments.id(commentId)
+    if (!comment) return res.status(404).json({ error: "Comment not found" })
+    if (String(comment.user) !== String(req.user.id)) return res.status(403).json({ error: "You can only delete your own comments" })
+
+    comment.deleteOne()
+    await post.save()
+    res.json({ message: "Comment deleted", commentId })
+  } catch (error) {
+    console.error("Delete comment error:", error)
+    res.status(500).json({ error: "Failed to delete comment" })
+  }
+}
+
+module.exports = { getPosts, createPost, getPost, likePost, addComment, deletePost, deleteComment }
