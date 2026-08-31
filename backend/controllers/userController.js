@@ -8,6 +8,8 @@ const publicProjection = "-password"
 const toPublicUser = (user) => {
   const value = user?.toObject ? user.toObject() : { ...user }
   if (value.profileImage?.startsWith("gridfs:")) value.profileImage = `/api/users/${value._id}/avatar`
+  value.profileViewCount = Array.isArray(value.profileViews) ? value.profileViews.length : 0
+  delete value.profileViews
   return value
 }
 
@@ -53,6 +55,21 @@ const getUserById = async (req, res) => {
   }
 }
 
+const recordProfileView = async (req, res) => {
+  try {
+    const targetId = String(req.params.id)
+    if (!mongoose.Types.ObjectId.isValid(targetId)) return res.status(400).json({ error: "Invalid user ID" })
+    const viewerId = String(req.user.id)
+    if (viewerId === targetId) return res.json({ viewed: false, count: 0 })
+    const user = await User.findByIdAndUpdate(targetId, { $addToSet: { profileViews: new mongoose.Types.ObjectId(viewerId) } }, { new: true }).select(publicProjection)
+    if (!user) return res.status(404).json({ error: "User not found" })
+    res.json({ viewed: true, count: Array.isArray(user.profileViews) ? user.profileViews.length : 0 })
+  } catch (error) {
+    console.error("Record profile view error:", error)
+    res.status(500).json({ error: "Failed to record profile view" })
+  }
+}
+
 const getAvatar = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid user ID" })
@@ -60,15 +77,12 @@ const getAvatar = async (req, res) => {
     if (!user?.profileImage) return res.status(404).json({ error: "Profile image not found" })
     const fileId = user.profileImage.startsWith("gridfs:") ? user.profileImage.slice(7) : null
     if (!fileId || !ObjectId.isValid(fileId)) return res.status(404).json({ error: "Profile image not found" })
-
     const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: "profileImages" })
     const files = await bucket.find({ _id: new ObjectId(fileId) }).toArray()
     if (!files.length) return res.status(404).json({ error: "Profile image not found" })
     res.set("Content-Type", files[0].contentType || "image/jpeg")
     res.set("Cache-Control", "no-store")
-    bucket.openDownloadStream(new ObjectId(fileId)).on("error", () => {
-      if (!res.headersSent) res.status(404).end()
-    }).pipe(res)
+    bucket.openDownloadStream(new ObjectId(fileId)).on("error", () => { if (!res.headersSent) res.status(404).end() }).pipe(res)
   } catch (error) {
     console.error("Get avatar error:", error)
     res.status(500).json({ error: "Failed to fetch profile image" })
@@ -82,7 +96,6 @@ const updateMyProfile = async (req, res) => {
     for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
     if (updates.skills && !Array.isArray(updates.skills)) updates.skills = String(updates.skills).split(",").map(v => v.trim()).filter(Boolean).slice(0, 30)
     if (updates.experience !== undefined) updates.experience = Number(updates.experience)
-
     if (["github", "linkedin", "twitter", "website"].some(key => req.body[key] !== undefined)) {
       const current = await User.findById(req.user.id, "socialLinks")
       updates.socialLinks = {
@@ -92,18 +105,13 @@ const updateMyProfile = async (req, res) => {
         website: String(req.body.website ?? current?.socialLinks?.website ?? "").trim(),
       }
     }
-
     if (req.file?.buffer) {
       const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: "profileImages" })
       const filename = `${req.user.id}-${Date.now()}`
       const uploadStream = bucket.openUploadStream(filename, { contentType: req.file.mimetype, metadata: { userId: req.user.id } })
-      await new Promise((resolve, reject) => {
-        uploadStream.on("finish", resolve).on("error", reject)
-        uploadStream.end(req.file.buffer)
-      })
+      await new Promise((resolve, reject) => { uploadStream.on("finish", resolve).on("error", reject); uploadStream.end(req.file.buffer) })
       updates.profileImage = `gridfs:${uploadStream.id.toString()}`
     }
-
     const user = await User.findByIdAndUpdate(req.user.id, { $set: updates }, { new: true, runValidators: true }).select(publicProjection)
     if (!user) return res.status(404).json({ error: "User not found" })
     res.json({ user: toPublicUser(user) })
@@ -113,4 +121,4 @@ const updateMyProfile = async (req, res) => {
   }
 }
 
-module.exports = { getUsers, getUserById, getAvatar, searchCandidates, updateMyProfile };
+module.exports = { getUsers, getUserById, getAvatar, searchCandidates, updateMyProfile, recordProfileView };
