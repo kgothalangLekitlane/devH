@@ -1,57 +1,53 @@
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com").replace(/\/$/, "");
 export const assetUrl = (value?: string | null) => !value ? "" : value.startsWith("http") ? value : `${API_URL}${value}`;
-
-async function request(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${API_URL}${path}`, options);
-  let body: any = null;
-  try { body = await res.json(); } catch { /* empty response */ }
-  if (!res.ok) throw new Error(body?.error || body?.message || `Request failed (${res.status})`);
-  return body;
-}
-export async function registerUser(data: FormData | Record<string, unknown>) { const isForm = data instanceof FormData; return request("/api/auth/register", { method: "POST", headers: isForm ? undefined : { "Content-Type": "application/json" }, body: isForm ? data : JSON.stringify(data) }); }
-export async function loginUser(data: { email: string; password: string }) { return request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
-export async function fetchCurrentUser(token: string) { return request("/api/auth/me", { headers: authHeaders(token) }); }
-export async function fetchUsers(token: string) { return request("/api/users", { headers: authHeaders(token) }); }
-export async function fetchUserById(id: string) { return request(`/api/users/${encodeURIComponent(id)}`); }
-export async function recordProfileView(id: string, token: string) { return request(`/api/users/${encodeURIComponent(id)}/view`, { method: "POST", headers: authHeaders(token) }); }
-export async function updateMyProfile(data: FormData, token: string) { return request("/api/users/me", { method: "PUT", headers: authHeaders(token), body: data }); }
-export async function searchCandidates(query: string, token: string) { return request(`/api/users/search?q=${encodeURIComponent(query)}`, { headers: authHeaders(token) }); }
-export async function fetchPosts(page = 1, limit = 20) { const body = await request(`/api/posts?page=${page}&limit=${limit}`); return body.posts || body; }
-export async function createPost(data: { title: string; content: string; tags?: string[] }, token: string) { return request("/api/posts", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function likePost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/like`, { method: "POST", headers: authHeaders(token) }); }
-export async function addComment(postId: string, text: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/comments`, { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); }
-export async function deletePost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE", headers: authHeaders(token) }); }
-export async function deleteComment(postId: string, commentId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { method: "DELETE", headers: authHeaders(token) }); }
-export async function fetchMessages(token: string, page = 1, limit = 100) { return request(`/api/messages?page=${page}&limit=${limit}`, { headers: authHeaders(token) }); }
-export async function fetchUnreadMessageCount(token: string) { return request("/api/messages/unread/count", { headers: authHeaders(token) }); }
-export async function markConversationRead(userId: string, token: string) { return request(`/api/messages/${encodeURIComponent(userId)}/read`, { method: "PATCH", headers: authHeaders(token) }); }
-export async function fetchMessagesWithUser(userId: string, token: string, page = 1, limit = 100) { return request(`/api/messages/${encodeURIComponent(userId)}?page=${page}&limit=${limit}`, { headers: authHeaders(token) }); }
-export async function sendMessage(data: { receiverId: string; text: string }, token: string) { return request("/api/messages", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function postMessage(data: { receiverId: string; text: string }, token: string) { return sendMessage(data, token); }
-export async function fetchNotifications(token: string, limit = 30) { return request(`/api/notifications?limit=${limit}`, { headers: authHeaders(token) }); }
-export async function markNotificationRead(id: string, token: string) { return request(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH", headers: authHeaders(token) }); }
-export async function markAllNotificationsRead(token: string) { return request("/api/notifications/read-all", { method: "PATCH", headers: authHeaders(token) }); }
-export async function fetchRecruiters() { return request("/api/recruiters"); }
-export async function fetchResources() { return request("/api/resources"); }
-export async function addResource(data: Record<string, unknown>, token: string) { return request("/api/resources", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function fetchJobs(params: { q?: string; location?: string; type?: string; remote?: boolean; skill?: string } = {}) { const query = new URLSearchParams(); Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== "" && value !== false) query.set(key, String(value)); }); return request(`/api/jobs${query.toString() ? `?${query}` : ""}`); }
-export async function fetchSavedJobs(token: string) { return request("/api/jobs/saved", { headers: authHeaders(token) }); }
-export async function saveJob(jobId: string, token: string) { return request(`/api/jobs/${encodeURIComponent(jobId)}/save`, { method: "POST", headers: authHeaders(token) }); }
-export async function applyToJob(jobId: string, data: { coverLetter?: string; resumeUrl?: string }, token: string) { return request(`/api/jobs/${encodeURIComponent(jobId)}/apply`, { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function fetchMyApplications(token: string) { return request("/api/jobs/applications/me", { headers: authHeaders(token) }); }
-export async function fetchApplication(id: string, token: string) { return request(`/api/jobs/applications/${encodeURIComponent(id)}`, { headers: authHeaders(token) }); }
-export async function withdrawApplication(id: string, token: string) { return request(`/api/jobs/applications/${encodeURIComponent(id)}/withdraw`, { method: "POST", headers: authHeaders(token) }); }
-export async function createJob(data: Record<string, unknown>, token: string) { return request("/api/recruiters/jobs", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function addRecruiter(data: Record<string, unknown>, token: string) { return request("/api/recruiters/register", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function fetchRecruiterDashboard(token: string) { return request("/api/recruiters/dashboard", { headers: authHeaders(token) }); }
-export async function fetchJobApplicants(jobId: string, token: string) { return request(`/api/recruiters/jobs/${encodeURIComponent(jobId)}/applications`, { headers: authHeaders(token) }); }
-export async function updateApplicationStatus(id: string, status: "submitted" | "reviewing" | "shortlisted" | "rejected" | "accepted", note: string, token: string) { return request(`/api/recruiters/applications/${encodeURIComponent(id)}/status`, { method: "PATCH", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify({ status, note }) }); }
-export async function fetchProjects() { return request("/api/projects"); }
-export async function createProject(data: { title: string; description: string; techStack?: string[]; githubUrl?: string; liveUrl?: string }, token: string) { return request("/api/projects", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function updateProject(id: string, data: Record<string, unknown>, token: string) { return request(`/api/projects/${encodeURIComponent(id)}`, { method: "PUT", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function deleteProject(id: string, token: string) { return request(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders(token) }); }
-export async function fetchConnectionSummary(token: string) { return request("/api/connections/summary", { headers: authHeaders(token) }); }
-export async function fetchConnections(token: string) { return request("/api/connections", { headers: authHeaders(token) }); }
-export async function requestConnection(userId: string, token: string) { return request(`/api/connections/${encodeURIComponent(userId)}`, { method: "POST", headers: authHeaders(token) }); }
-export async function updateConnection(id: string, status: "accepted" | "rejected", token: string) { return request(`/api/connections/${encodeURIComponent(id)}`, { method: "PATCH", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify({ status }) }); }
+async function request(path: string, options: RequestInit = {}) { const res = await fetch(`${API_URL}${path}`, options); let body:any=null; try{body=await res.json()}catch{} if(!res.ok) throw new Error(body?.error||body?.message||`Request failed (${res.status})`); return body; }
+const authHeaders=(token:string)=>({Authorization:`Bearer ${token}`});
+export async function registerUser(data:FormData|Record<string,unknown>){const isForm=data instanceof FormData;return request("/api/auth/register",{method:"POST",headers:isForm?undefined:{"Content-Type":"application/json"},body:isForm?data:JSON.stringify(data)})}
+export async function loginUser(data:{email:string;password:string}){return request("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function fetchCurrentUser(token:string){return request("/api/auth/me",{headers:authHeaders(token)})}
+export async function fetchUsers(token:string){return request("/api/users",{headers:authHeaders(token)})}
+export async function fetchUserById(id:string){return request(`/api/users/${encodeURIComponent(id)}`)}
+export async function recordProfileView(id:string,token:string){return request(`/api/users/${encodeURIComponent(id)}/view`,{method:"POST",headers:authHeaders(token)})}
+export async function updateMyProfile(data:FormData,token:string){return request("/api/users/me",{method:"PUT",headers:authHeaders(token),body:data})}
+export async function searchCandidates(query:string,token:string){return request(`/api/users/search?q=${encodeURIComponent(query)}`,{headers:authHeaders(token)})}
+export async function fetchPosts(page=1,limit=20){const body=await request(`/api/posts?page=${page}&limit=${limit}`);return body.posts||body}
+export async function createPost(data:{title:string;content:string;tags?:string[]},token:string){return request("/api/posts",{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function likePost(postId:string,token:string){return request(`/api/posts/${encodeURIComponent(postId)}/like`,{method:"POST",headers:authHeaders(token)})}
+export async function addComment(postId:string,text:string,token:string){return request(`/api/posts/${encodeURIComponent(postId)}/comments`,{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify({text})})}
+export async function deletePost(postId:string,token:string){return request(`/api/posts/${encodeURIComponent(postId)}`,{method:"DELETE",headers:authHeaders(token)})}
+export async function deleteComment(postId:string,commentId:string,token:string){return request(`/api/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`,{method:"DELETE",headers:authHeaders(token)})}
+export async function fetchMessages(token:string,page=1,limit=100){return request(`/api/messages?page=${page}&limit=${limit}`,{headers:authHeaders(token)})}
+export async function fetchUnreadMessageCount(token:string){return request("/api/messages/unread/count",{headers:authHeaders(token)})}
+export async function markConversationRead(userId:string,token:string){return request(`/api/messages/${encodeURIComponent(userId)}/read`,{method:"PATCH",headers:authHeaders(token)})}
+export async function fetchMessagesWithUser(userId:string,token:string,page=1,limit=100){return request(`/api/messages/${encodeURIComponent(userId)}?page=${page}&limit=${limit}`,{headers:authHeaders(token)})}
+export async function sendMessage(data:{receiverId:string;text:string},token:string){return request("/api/messages",{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function postMessage(data:{receiverId:string;text:string},token:string){return sendMessage(data,token)}
+export async function fetchNotifications(token:string,limit=30){return request(`/api/notifications?limit=${limit}`,{headers:authHeaders(token)})}
+export async function markNotificationRead(id:string,token:string){return request(`/api/notifications/${encodeURIComponent(id)}/read`,{method:"PATCH",headers:authHeaders(token)})}
+export async function markAllNotificationsRead(token:string){return request("/api/notifications/read-all",{method:"PATCH",headers:authHeaders(token)})}
+export async function fetchRecruiters(){return request("/api/recruiters")}
+export async function fetchResources(){return request("/api/resources")}
+export async function addResource(data:Record<string,unknown>,token:string){return request("/api/resources",{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function fetchJobs(params:{q?:string;location?:string;type?:string;remote?:boolean;skill?:string}={}){const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!==""&&value!==false)query.set(key,String(value))});return request(`/api/jobs${query.toString()?`?${query}`:""}`)}
+export async function fetchSavedJobs(token:string){return request("/api/jobs/saved",{headers:authHeaders(token)})}
+export async function saveJob(jobId:string,token:string){return request(`/api/jobs/${encodeURIComponent(jobId)}/save`,{method:"POST",headers:authHeaders(token)})}
+export async function applyToJob(jobId:string,data:{coverLetter?:string;resumeUrl?:string},token:string){return request(`/api/jobs/${encodeURIComponent(jobId)}/apply`,{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function fetchMyApplications(token:string){return request("/api/jobs/applications/me",{headers:authHeaders(token)})}
+export async function fetchApplication(id:string,token:string){return request(`/api/jobs/applications/${encodeURIComponent(id)}`,{headers:authHeaders(token)})}
+export async function withdrawApplication(id:string,token:string){return request(`/api/jobs/applications/${encodeURIComponent(id)}/withdraw`,{method:"POST",headers:authHeaders(token)})}
+export async function createJob(data:Record<string,unknown>,token:string){return request("/api/recruiters/jobs",{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function addRecruiter(data:Record<string,unknown>,token:string){return request("/api/recruiters/register",{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function fetchRecruiterDashboard(token:string){return request("/api/recruiters/dashboard",{headers:authHeaders(token)})}
+export async function fetchJobApplicants(jobId:string,token:string){return request(`/api/recruiters/jobs/${encodeURIComponent(jobId)}/applications`,{headers:authHeaders(token)})}
+export async function updateApplicationStatus(id:string,status:"submitted"|"reviewing"|"shortlisted"|"rejected"|"accepted",note:string,token:string){return request(`/api/recruiters/applications/${encodeURIComponent(id)}/status`,{method:"PATCH",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify({status,note})})}
+export async function fetchCandidateMatches(jobId:string,token:string){return request(`/api/candidate-matches/${encodeURIComponent(jobId)}`,{headers:authHeaders(token)})}
+export async function getMyGithub(token:string){return request("/api/github/me",{headers:authHeaders(token)})}
+export async function getGithubUser(username:string){return request(`/api/github/user/${encodeURIComponent(username)}`)}
+export async function fetchProjects(){return request("/api/projects")}
+export async function createProject(data:{title:string;description:string;techStack?:string[];githubUrl?:string;liveUrl?:string},token:string){return request("/api/projects",{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function updateProject(id:string,data:Record<string,unknown>,token:string){return request(`/api/projects/${encodeURIComponent(id)}`,{method:"PUT",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
+export async function deleteProject(id:string,token:string){return request(`/api/projects/${encodeURIComponent(id)}`,{method:"DELETE",headers:authHeaders(token)})}
+export async function fetchConnectionSummary(token:string){return request("/api/connections/summary",{headers:authHeaders(token)})}
+export async function fetchConnections(token:string){return request("/api/connections",{headers:authHeaders(token)})}
+export async function requestConnection(userId:string,token:string){return request(`/api/connections/${encodeURIComponent(userId)}`,{method:"POST",headers:authHeaders(token)})}
+export async function updateConnection(id:string,status:"accepted"|"rejected",token:string){return request(`/api/connections/${encodeURIComponent(id)}`,{method:"PATCH",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify({status})})}
