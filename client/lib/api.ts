@@ -35,7 +35,12 @@ export async function markAllNotificationsRead(token: string) { return request("
 export async function fetchRecruiters() { return request("/api/recruiters"); }
 export async function fetchResources() { return request("/api/resources"); }
 export async function addResource(data: Record<string, unknown>, token: string) { return request("/api/resources", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function fetchJobs() { return request("/api/recruiters/jobs"); }
+export async function fetchJobs(params: { q?: string; location?: string; type?: string; remote?: boolean; skill?: string } = {}) { const query = new URLSearchParams(); Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== "" && value !== false) query.set(key, String(value)); }); return request(`/api/jobs${query.toString() ? `?${query}` : ""}`); }
+export async function fetchSavedJobs(token: string) { return request("/api/jobs/saved", { headers: authHeaders(token) }); }
+export async function saveJob(jobId: string, token: string) { return request(`/api/jobs/${encodeURIComponent(jobId)}/save`, { method: "POST", headers: authHeaders(token) }); }
+export async function applyToJob(jobId: string, data: { coverLetter?: string; resumeUrl?: string }, token: string) { return request(`/api/jobs/${encodeURIComponent(jobId)}/apply`, { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
+export async function fetchMyApplications(token: string) { return request("/api/jobs/applications/me", { headers: authHeaders(token) }); }
+export async function fetchApplication(id: string, token: string) { return request(`/api/jobs/applications/${encodeURIComponent(id)}`, { headers: authHeaders(token) }); }
 export async function createJob(data: Record<string, unknown>, token: string) { return request("/api/recruiters/jobs", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function addRecruiter(data: Record<string, unknown>, token: string) { return request("/api/recruiters/register", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function fetchProjects() { return request("/api/projects"); }
