@@ -64,3 +64,5 @@ Pull requests are welcome. For major changes, please open an issue first.
 ## 📄 License
 
 MIT
+
+<!-- Deployment sync marker: keep Git/Vercel production deployment state aligned. -->
