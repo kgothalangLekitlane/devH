@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { fetchCurrentUser } from '../lib/api';
+import { disconnectSocket } from '../lib/socket';
 
 interface User {
   id: string;
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (!cancelled) {
+          disconnectSocket();
           setToken(null);
           setUser(null);
           clearStoredSession();
@@ -72,10 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     restoreSession();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = (newToken: string, newUser: User) => {
+    if (!newToken || !newUser?.id) throw new Error('Invalid authentication response');
+    disconnectSocket();
     clearStoredSession();
     setToken(newToken);
     setUser(newUser);
@@ -84,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    disconnectSocket();
     setToken(null);
     setUser(null);
     clearStoredSession();
