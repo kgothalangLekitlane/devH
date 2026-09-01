@@ -11,7 +11,7 @@ export async function fetchUserById(id:string){return request(`/api/users/${enco
 export async function recordProfileView(id:string,token:string){return request(`/api/users/${encodeURIComponent(id)}/view`,{method:"POST",headers:authHeaders(token)})}
 export async function updateMyProfile(data:FormData,token:string){return request("/api/users/me",{method:"PUT",headers:authHeaders(token),body:data})}
 export async function searchCandidates(query:string,token:string){return request(`/api/users/search?q=${encodeURIComponent(query)}`,{headers:authHeaders(token)})}
-export async function fetchPosts(page=1,limit=20){const body=await request(`/api/posts?page=${page}&limit=${limit}`);return body.posts||body}
+export async function fetchPosts(page:number|string=1,limit=20){const normalizedPage=typeof page==="number"&&Number.isFinite(page)&&page>0?page:1;const body=await request(`/api/posts?page=${normalizedPage}&limit=${limit}`);return body.posts||body}
 export async function createPost(data:{title:string;content:string;tags?:string[]},token:string){return request("/api/posts",{method:"POST",headers:{...authHeaders(token),"Content-Type":"application/json"},body:JSON.stringify(data)})}
 export async function likePost(postId:string,token:string){return request(`/api/posts/${encodeURIComponent(postId)}/like`,{method:"POST",headers:authHeaders(token)})}
 export async function fetchComments(postId:string,token?:string){return request(`/api/posts/${encodeURIComponent(postId)}`).then((body:any)=>body.comments||[])}
