@@ -7,11 +7,13 @@ import { fetchApplication } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 
 const labels: Record<string,string> = { submitted:"Submitted", reviewing:"Reviewing", shortlisted:"Shortlisted", accepted:"Accepted", rejected:"Rejected", withdrawn:"Withdrawn" }
-const steps = ["submitted", "reviewing", "shortlisted", "accepted"]
 
-export default function ApplicationDetails({ params }: { params: { id: string } }) {
+export default function ApplicationDetails({ params }: { params: Promise<{ id: string }> }) {
   const { token } = useAuth(); const [data,setData] = useState<any>(); const [error,setError] = useState("")
-  useEffect(() => { if(token) fetchApplication(params.id, token).then(setData).catch(e=>setError(e.message)) }, [token, params.id])
+  useEffect(() => {
+    if (!token) return
+    params.then(({ id }) => fetchApplication(id, token).then(setData).catch(e => setError(e.message)))
+  }, [token, params])
   if(error) return <main className="mx-auto max-w-3xl p-8"><p className="text-red-600">{error}</p><Link href="/applications" className="mt-4 inline-block text-primary">← Back to applications</Link></main>
   if(!data) return <main className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></main>
   const { application, events=[] } = data; const job=application.job||{}; const recruiter=job.recruiter||{}; const current=application.status
