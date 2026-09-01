@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell, Code2, Github, Linkedin, Globe, MessageCircle, Heart, MessageSquare, Share2, Trash2, Plus, Search, RefreshCw, Users, FolderKanban, Eye, LogOut, Menu, X, UserPlus } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { assetUrl, createPost, deletePost, fetchConnections, fetchMe, fetchNotifications, fetchPosts, fetchProjects, getUnreadCount, likePost, markNotificationRead, fetchComments, addComment, recordProfileView } from "@/lib/api";
+import { Code2, MessageCircle, Heart, MessageSquare, Share2, Trash2, Plus, Search, RefreshCw, Users, FolderKanban, Eye, LogOut, Menu, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { assetUrl, createPost, deletePost, fetchConnections, fetchMe, fetchNotifications, fetchPosts, fetchProjects, getUnreadCount, likePost, markNotificationRead, fetchComments, addComment } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,10 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { MobileNav } from "@/components/MobileNav";
 
 type DashboardPost = { _id: string; title?: string; content?: string; body?: string; author?: any; user?: any; likes?: any[]; comments?: any[]; createdAt?: string; updatedAt?: string; [key: string]: any };
-
 type DashboardComment = { _id: string; content?: string; text?: string; author?: any; user?: any; createdAt?: string; [key: string]: any };
 
 export default function DashboardPage() {
@@ -41,13 +39,8 @@ export default function DashboardPage() {
 
   const loadPosts = useCallback(async () => {
     if (!token) return;
-    try {
-      const data = await fetchPosts(token);
-      const nextPosts = Array.isArray(data) ? data : data?.posts || [];
-      setPosts(nextPosts);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load posts.");
-    }
+    try { const data = await fetchPosts(token); const nextPosts = Array.isArray(data) ? data : data?.posts || []; setPosts(nextPosts); }
+    catch (e) { setError(e instanceof Error ? e.message : "Unable to load posts."); }
   }, [token]);
 
   useEffect(() => {
@@ -57,9 +50,7 @@ export default function DashboardPage() {
     (async () => {
       setLoading(true);
       try {
-        const [postResult, notificationResult, connectionResult, projectResult, meResult] = await Promise.allSettled([
-          fetchPosts(token), fetchNotifications(token), fetchConnections(token), fetchProjects(), fetchMe(token)
-        ]);
+        const [postResult, notificationResult, connectionResult, projectResult, meResult] = await Promise.allSettled([fetchPosts(token), fetchNotifications(token), fetchConnections(token), fetchProjects(), fetchMe(token)]);
         if (!active) return;
         if (postResult.status === "fulfilled") { const value: any = postResult.value; setPosts(Array.isArray(value) ? value : value?.posts || []); }
         if (notificationResult.status === "fulfilled") { const value: any = notificationResult.value; setNotifications(Array.isArray(value) ? value : value?.notifications || []); }
@@ -88,10 +79,8 @@ export default function DashboardPage() {
 
   const handleLike = async (id: string) => {
     if (!token) return;
-    try {
-      const result: any = await likePost(id, token);
-      updateSelectedPost(id, post => ({ ...post, ...result, likes: result?.likes ?? post.likes }));
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to like post."); }
+    try { const result: any = await likePost(id, token); updateSelectedPost(id, post => ({ ...post, ...result, likes: result?.likes ?? post.likes })); }
+    catch (e) { setError(e instanceof Error ? e.message : "Unable to like post."); }
   };
 
   const openPost = async (post: DashboardPost) => {
@@ -113,10 +102,7 @@ export default function DashboardPage() {
   };
 
   const filteredPosts = useMemo(() => {
-    const filtered = posts.filter(post => {
-      const text = `${post.title || ""} ${post.content || post.body || ""} ${post.author?.username || post.user?.username || ""}`.toLowerCase();
-      return !query.trim() || text.includes(query.trim().toLowerCase());
-    });
+    const filtered = posts.filter(post => { const text = `${post.title || ""} ${post.content || post.body || ""} ${post.author?.username || post.user?.username || ""}`.toLowerCase(); return !query.trim() || text.includes(query.trim().toLowerCase()); });
     if (feedMode === "popular") return [...filtered].sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0));
     return [...filtered].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   }, [posts, query, feedMode]);
@@ -142,7 +128,6 @@ export default function DashboardPage() {
       </section>
       <aside className="hidden space-y-4 lg:block"><Card><CardHeader><CardTitle className="text-base">Your activity</CardTitle></CardHeader><CardContent className="grid gap-4"><div className="flex items-center justify-between text-sm"><span className="flex items-center gap-2"><Users className="h-4 w-4" />Connections</span><strong>{connectionCount}</strong></div><div className="flex items-center justify-between text-sm"><span className="flex items-center gap-2"><FolderKanban className="h-4 w-4" />Projects</span><strong>{projectCount}</strong></div><div className="flex items-center justify-between text-sm"><span className="flex items-center gap-2"><Eye className="h-4 w-4" />Profile views</span><strong>{profileViews}</strong></div></CardContent></Card><Card><CardHeader><CardTitle className="text-base">Notifications</CardTitle></CardHeader><CardContent className="space-y-2">{notifications.slice(0, 5).map((n: any) => <button key={n._id || n.id} className="block w-full rounded-md p-2 text-left text-sm hover:bg-gray-50" onClick={() => n._id && token && void markNotificationRead(n._id, token)}>{n.message || n.text || "New activity on your account"}</button>)}{!notifications.length && <p className="text-sm text-gray-500">You're all caught up.</p>}</CardContent></Card></aside>
     </main>
-    <MobileNav />
     <Dialog open={showComposer} onOpenChange={setShowComposer}><DialogContent><DialogHeader><DialogTitle>Create a post</DialogTitle></DialogHeader><div className="space-y-4"><Input value={newPost.title} onChange={e => setNewPost(v => ({ ...v, title: e.target.value }))} placeholder="Title" /><Textarea value={newPost.content} onChange={e => setNewPost(v => ({ ...v, content: e.target.value }))} placeholder="What do you want to share?" rows={6} /><Button onClick={() => void createNewPost()} disabled={!newPost.title.trim() || !newPost.content.trim() || loading}>Publish</Button></div></DialogContent></Dialog>
     <Dialog open={!!selectedPost} onOpenChange={open => !open && setSelectedPost(null)}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>{selectedPost?.title}</DialogTitle></DialogHeader><p className="whitespace-pre-wrap text-gray-700">{selectedPost?.content || selectedPost?.body}</p><div className="border-t pt-4"><h3 className="font-medium">Comments</h3><div className="mt-3 space-y-3">{comments.map(comment => <div key={comment._id} className="rounded-lg bg-gray-50 p-3 text-sm"><p className="font-medium">{comment.author?.username || comment.user?.username || "Developer"}</p><p className="mt-1">{comment.content || comment.text}</p></div>)}</div><div className="mt-4 flex gap-2"><Input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Write a comment..." onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void submitComment(); } }} /><Button onClick={() => void submitComment()} disabled={!newComment.trim()}>Comment</Button></div></div></DialogContent></Dialog>
   </div>;
