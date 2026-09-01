@@ -29,17 +29,13 @@ app.disable("x-powered-by"); app.set("trust proxy", 1); app.use(cors(corsOptions
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), { maxAge: "7d" }));
 
 const buckets = new Map();
-const rateLimit = ({ windowMs, max }) => (req, res, next) => {
-  const key = `${req.ip}:${req.baseUrl}:${req.path}`; const now = Date.now(); const bucket = buckets.get(key);
-  if (!bucket || now - bucket.startedAt >= windowMs) { buckets.set(key, { startedAt: now, count: 1 }); return next(); }
-  bucket.count += 1; if (bucket.count > max) { res.set("Retry-After", Math.ceil((windowMs - (now - bucket.startedAt)) / 1000)); return res.status(429).json({ message: "Too many requests. Please try again later." }); } next();
-};
+const rateLimit = ({ windowMs, max }) => (req, res, next) => { const key = `${req.ip}:${req.baseUrl}:${req.path}`; const now = Date.now(); const bucket = buckets.get(key); if (!bucket || now - bucket.startedAt >= windowMs) { buckets.set(key, { startedAt: now, count: 1 }); return next(); } bucket.count += 1; if (bucket.count > max) { res.set("Retry-After", Math.ceil((windowMs - (now - bucket.startedAt)) / 1000)); return res.status(429).json({ message: "Too many requests. Please try again later." }); } next(); };
 
 app.get("/", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", message: "DevHeaven API is running" }));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", uptime: process.uptime() }));
 app.get("/health/db", (req, res) => { const connected = mongoose.connection.readyState === 1; res.status(connected ? 200 : 503).json({ status: connected ? "ok" : "unavailable", database: connected ? "connected" : "disconnected" }); });
-app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })); app.use("/api/auth/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 20 })); app.use("/api/messages", rateLimit({ windowMs: 60 * 1000, max: 120 })); app.use("/api/posts", rateLimit({ windowMs: 60 * 1000, max: 60 }));
-app.use("/api/auth", require("./routes/auth")); app.use("/api/users", require("./routes/users")); app.use("/api/posts", require("./routes/posts")); app.use("/api/resources", require("./routes/resources")); app.use("/api/recruiters", require("./routes/recruiters")); app.use("/api/messages", require("./routes/messages")); app.use("/api/projects", require("./routes/projects")); app.use("/api/connections", require("./routes/connections")); app.use("/api/notifications", require("./routes/notifications")); app.use("/api", require("./routes/api"));
+app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })); app.use("/api/auth/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 20 })); app.use("/api/messages", rateLimit({ windowMs: 60 * 1000, max: 120 })); app.use("/api/posts", rateLimit({ windowMs: 60 * 1000, max: 60 })); app.use("/api/network", rateLimit({ windowMs: 60 * 1000, max: 60 }));
+app.use("/api/auth", require("./routes/auth")); app.use("/api/users", require("./routes/users")); app.use("/api/posts", require("./routes/posts")); app.use("/api/resources", require("./routes/resources")); app.use("/api/recruiters", require("./routes/recruiters")); app.use("/api/messages", require("./routes/messages")); app.use("/api/projects", require("./routes/projects")); app.use("/api/connections", require("./routes/connections")); app.use("/api/network", require("./routes/network")); app.use("/api/notifications", require("./routes/notifications")); app.use("/api", require("./routes/api"));
 app.use((err, req, res, next) => { console.error("Unhandled request error:", err); if (res.headersSent) return next(err); res.status(err.status || 500).json({ message: "Internal server error" }); });
 
 const server = http.createServer(app);
