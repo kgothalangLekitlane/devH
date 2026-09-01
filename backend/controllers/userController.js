@@ -3,13 +3,15 @@ const mongoose = require("mongoose")
 const { GridFSBucket, ObjectId } = require("mongodb")
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-const publicProjection = "-password"
+const publicProjection = "-password -email"
 
 const toPublicUser = (user) => {
   const value = user?.toObject ? user.toObject() : { ...user }
   if (value.profileImage?.startsWith("gridfs:")) value.profileImage = `/api/users/${value._id}/avatar`
   value.profileViewCount = Array.isArray(value.profileViews) ? value.profileViews.length : 0
   delete value.profileViews
+  delete value.email
+  delete value.password
   return value
 }
 
@@ -17,19 +19,23 @@ const searchCandidates = async (req, res) => {
   try {
     const { q, skill, location, experience } = req.query
     const query = {}
-    const text = String(q || "").trim()
+    const text = String(q || "").trim().slice(0, 100)
     if (text) {
       const pattern = { $regex: escapeRegex(text), $options: "i" }
-      query.$or = [{ firstName: pattern }, { lastName: pattern }, { username: pattern }, { email: pattern }, { skills: pattern }]
+      query.$or = [{ firstName: pattern }, { lastName: pattern }, { username: pattern }, { skills: pattern }]
     }
-    if (skill) query.skills = { $regex: escapeRegex(String(skill)), $options: "i" }
-    if (location) query.location = { $regex: escapeRegex(String(location)), $options: "i" }
-    if (experience) query.experience = { $gte: Number(experience) }
+    if (skill) query.skills = { $regex: escapeRegex(String(skill).trim().slice(0, 50)), $options: "i" }
+    if (location) query.location = { $regex: escapeRegex(String(location).trim().slice(0, 120)), $options: "i" }
+    if (experience !== undefined && experience !== "") {
+      const years = Number(experience)
+      if (!Number.isFinite(years) || years < 0 || years > 80) return res.status(400).json({ message: "Experience must be between 0 and 80 years." })
+      query.experience = { $gte: years }
+    }
     const candidates = await User.find(query, publicProjection).sort({ createdAt: -1 }).limit(50)
     res.json({ candidates: candidates.map(toPublicUser) })
   } catch (err) {
     console.error("Search users error:", err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: "Unable to search users" })
   }
 }
 
@@ -95,15 +101,28 @@ const updateMyProfile = async (req, res) => {
     const updates = {}
     for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
     if (updates.skills && !Array.isArray(updates.skills)) updates.skills = String(updates.skills).split(",").map(v => v.trim()).filter(Boolean).slice(0, 30)
-    if (updates.experience !== undefined) updates.experience = Number(updates.experience)
+    if (updates.experience !== undefined) {
+      updates.experience = Number(updates.experience)
+      if (!Number.isFinite(updates.experience) || updates.experience < 0 || updates.experience > 80) return res.status(400).json({ error: "Experience must be between 0 and 80 years." })
+    }
     if (["github", "linkedin", "twitter", "website"].some(key => req.body[key] !== undefined)) {
       const current = await User.findById(req.user.id, "socialLinks")
-      updates.socialLinks = {
+      const links = {
         github: String(req.body.github ?? current?.socialLinks?.github ?? "").trim(),
         linkedin: String(req.body.linkedin ?? current?.socialLinks?.linkedin ?? "").trim(),
         twitter: String(req.body.twitter ?? current?.socialLinks?.twitter ?? "").trim(),
         website: String(req.body.website ?? current?.socialLinks?.website ?? "").trim(),
       }
+      for (const [key, value] of Object.entries(links)) {
+        if (!value) continue
+        try {
+          const parsed = new URL(value)
+          if (!["http:", "https:"].includes(parsed.protocol)) throw new Error()
+        } catch {
+          return res.status(400).json({ error: `${key} must be a valid HTTP or HTTPS URL.` })
+        }
+      }
+      updates.socialLinks = links
     }
     if (req.file?.buffer) {
       const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: "profileImages" })
