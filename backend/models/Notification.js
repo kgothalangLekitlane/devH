@@ -3,7 +3,7 @@ const mongoose = require("mongoose")
 const notificationSchema = new mongoose.Schema({
   recipient: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  type: { type: String, enum: ["like", "comment", "connection", "message", "system"], required: true },
+  type: { type: String, enum: ["like", "comment", "connection", "message", "job_application", "application_status", "system"], required: true },
   text: { type: String, required: true, trim: true, maxlength: 300 },
   link: { type: String, trim: true, maxlength: 500 },
   read: { type: Boolean, default: false, index: true },
