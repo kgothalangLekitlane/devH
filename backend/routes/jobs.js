@@ -2,8 +2,8 @@ const express = require("express")
 const mongoose = require("mongoose")
 const Job = require("../models/Job")
 const Application = require("../models/Application")
+const ApplicationEvent = require("../models/ApplicationEvent")
 const SavedJob = require("../models/SavedJob")
-const Recruiter = require("../models/Recruiter")
 const authenticate = require("../middleware/authMiddleware")
 
 const router = express.Router()
@@ -49,6 +49,7 @@ router.post("/:jobId/apply", authenticate, async (req, res) => {
     const job = await Job.findById(req.params.jobId)
     if (!job) return res.status(404).json({ message: "Job not found" })
     const application = await Application.create({ job: job._id, applicant: req.user.id, coverLetter: String(coverLetter), resumeUrl: String(resumeUrl) })
+    await ApplicationEvent.create({ application: application._id, status: "submitted" })
     await job.updateOne({ $addToSet: { applicants: req.user.id } })
     await application.populate([{ path: "job", populate: { path: "recruiter", select: "name company" } }, { path: "applicant", select: "firstName lastName username profileImage" }])
     res.status(201).json({ application })
@@ -61,7 +62,8 @@ router.post("/:jobId/apply", authenticate, async (req, res) => {
 router.get("/applications/me", authenticate, async (req, res) => {
   try {
     const applications = await Application.find({ applicant: req.user.id }).populate({ path: "job", populate: { path: "recruiter", select: "name company" } }).sort({ updatedAt: -1 }).lean()
-    res.json({ applications })
+    const counts = applications.reduce((acc, item) => { acc.total += 1; acc[item.status] = (acc[item.status] || 0) + 1; return acc }, { total: 0, submitted: 0, reviewing: 0, shortlisted: 0, rejected: 0, accepted: 0, withdrawn: 0 })
+    res.json({ applications, stats: counts })
   } catch (err) { res.status(500).json({ message: "Failed to fetch applications" }) }
 })
 
@@ -70,8 +72,22 @@ router.get("/applications/:id", authenticate, async (req, res) => {
     if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid application id" })
     const application = await Application.findOne({ _id: req.params.id, applicant: req.user.id }).populate({ path: "job", populate: { path: "recruiter", select: "name company" } })
     if (!application) return res.status(404).json({ message: "Application not found" })
-    res.json({ application })
+    const events = await ApplicationEvent.find({ application: application._id }).sort({ createdAt: 1 }).lean()
+    res.json({ application, events })
   } catch (err) { res.status(500).json({ message: "Failed to fetch application" }) }
+})
+
+router.post("/applications/:id/withdraw", authenticate, async (req, res) => {
+  try {
+    if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid application id" })
+    const application = await Application.findOne({ _id: req.params.id, applicant: req.user.id })
+    if (!application) return res.status(404).json({ message: "Application not found" })
+    if (["rejected", "accepted", "withdrawn"].includes(application.status)) return res.status(409).json({ message: "This application can no longer be withdrawn" })
+    application.status = "withdrawn"
+    await application.save()
+    await ApplicationEvent.create({ application: application._id, status: "withdrawn", note: "Application withdrawn by candidate" })
+    res.json({ application })
+  } catch (err) { res.status(400).json({ message: err.message }) }
 })
 
 module.exports = router
