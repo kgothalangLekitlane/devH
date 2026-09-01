@@ -41,6 +41,7 @@ export async function saveJob(jobId: string, token: string) { return request(`/a
 export async function applyToJob(jobId: string, data: { coverLetter?: string; resumeUrl?: string }, token: string) { return request(`/api/jobs/${encodeURIComponent(jobId)}/apply`, { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function fetchMyApplications(token: string) { return request("/api/jobs/applications/me", { headers: authHeaders(token) }); }
 export async function fetchApplication(id: string, token: string) { return request(`/api/jobs/applications/${encodeURIComponent(id)}`, { headers: authHeaders(token) }); }
+export async function withdrawApplication(id: string, token: string) { return request(`/api/jobs/applications/${encodeURIComponent(id)}/withdraw`, { method: "POST", headers: authHeaders(token) }); }
 export async function createJob(data: Record<string, unknown>, token: string) { return request("/api/recruiters/jobs", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function addRecruiter(data: Record<string, unknown>, token: string) { return request("/api/recruiters/register", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function fetchProjects() { return request("/api/projects"); }
