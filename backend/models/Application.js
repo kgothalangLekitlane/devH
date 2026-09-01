@@ -11,6 +11,7 @@ const applicationSchema = new mongoose.Schema({
 })
 
 applicationSchema.index({ job: 1, applicant: 1 }, { unique: true })
+applicationSchema.index({ applicant: 1, status: 1, updatedAt: -1 })
 applicationSchema.pre("save", function(next) { this.updatedAt = new Date(); next() })
 
 module.exports = mongoose.model("Application", applicationSchema)
