@@ -17,12 +17,7 @@ const app = express();
 const configuredClientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "").split(",").map((url) => url.trim().replace(/\/$/, "")).filter(Boolean);
 const defaultClientUrls = ["https://dev-h-drab.vercel.app", "https://dev-h-qzun.vercel.app"];
 const allowedOrigins = new Set([...defaultClientUrls, ...configuredClientUrls]);
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  const normalized = origin.replace(/\/$/, "");
-  if (allowedOrigins.has(normalized)) return true;
-  try { const url = new URL(normalized); return url.hostname.endsWith(".vercel.app") && url.hostname.startsWith("dev-h-"); } catch { return false; }
-};
+const isAllowedOrigin = (origin) => { if (!origin) return true; const normalized = origin.replace(/\/$/, ""); if (allowedOrigins.has(normalized)) return true; try { const url = new URL(normalized); return url.hostname.endsWith(".vercel.app") && url.hostname.startsWith("dev-h-"); } catch { return false; } };
 const corsOptions = { origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error("CORS origin not allowed")), credentials: true };
 const PORT = Number(process.env.PORT) || 5000;
 app.disable("x-powered-by"); app.set("trust proxy", 1); app.use(cors(corsOptions)); app.use(express.json({ limit: "100kb" }));
@@ -34,8 +29,8 @@ const rateLimit = ({ windowMs, max }) => (req, res, next) => { const key = `${re
 app.get("/", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", message: "DevHeaven API is running" }));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", service: "devheaven-api", uptime: process.uptime() }));
 app.get("/health/db", (req, res) => { const connected = mongoose.connection.readyState === 1; res.status(connected ? 200 : 503).json({ status: connected ? "ok" : "unavailable", database: connected ? "connected" : "disconnected" }); });
-app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })); app.use("/api/auth/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 20 })); app.use("/api/messages", rateLimit({ windowMs: 60 * 1000, max: 120 })); app.use("/api/posts", rateLimit({ windowMs: 60 * 1000, max: 60 })); app.use("/api/network", rateLimit({ windowMs: 60 * 1000, max: 60 }));
-app.use("/api/auth", require("./routes/auth")); app.use("/api/users", require("./routes/users")); app.use("/api/posts", require("./routes/posts")); app.use("/api/resources", require("./routes/resources")); app.use("/api/recruiters", require("./routes/recruiters")); app.use("/api/messages", require("./routes/messages")); app.use("/api/projects", require("./routes/projects")); app.use("/api/connections", require("./routes/connections")); app.use("/api/network", require("./routes/network")); app.use("/api/notifications", require("./routes/notifications")); app.use("/api", require("./routes/api"));
+app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })); app.use("/api/auth/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 20 })); app.use("/api/messages", rateLimit({ windowMs: 60 * 1000, max: 120 })); app.use("/api/posts", rateLimit({ windowMs: 60 * 1000, max: 60 })); app.use("/api/network", rateLimit({ windowMs: 60 * 1000, max: 60 })); app.use("/api/jobs", rateLimit({ windowMs: 60 * 1000, max: 60 }));
+app.use("/api/auth", require("./routes/auth")); app.use("/api/users", require("./routes/users")); app.use("/api/posts", require("./routes/posts")); app.use("/api/resources", require("./routes/resources")); app.use("/api/recruiters", require("./routes/recruiters")); app.use("/api/jobs", require("./routes/jobs")); app.use("/api/messages", require("./routes/messages")); app.use("/api/projects", require("./routes/projects")); app.use("/api/connections", require("./routes/connections")); app.use("/api/network", require("./routes/network")); app.use("/api/notifications", require("./routes/notifications")); app.use("/api", require("./routes/api"));
 app.use((err, req, res, next) => { console.error("Unhandled request error:", err); if (res.headersSent) return next(err); res.status(err.status || 500).json({ message: "Internal server error" }); });
 
 const server = http.createServer(app);
