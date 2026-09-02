@@ -138,15 +138,56 @@ const conversationRoom = (a, b) => {
   return `conversation:${ids[0]}:${ids[1]}`;
 };
 
-io.on("connection", (socket) => {
-  socket.join(`user:${socket.user.id}`);
-  socket.on("joinConversation", ({ userId } = {}) => {
-    if (!mongoose.Types.ObjectId.isValid(userId) || String(userId) === String(socket.user.id)) return;
-    socket.join(conversationRoom(socket.user.id, userId));
+const activeUsers = new Map();
+const emitPresence = (userId, online, lastSeenAt = null) => {
+  io.emit("presence", { userId: String(userId), online, lastSeenAt });
+};
+
+io.on("connection", async (socket) => {
+  const userId = String(socket.user.id);
+  const connections = activeUsers.get(userId) || new Set();
+  const wasOffline = connections.size === 0;
+  connections.add(socket.id);
+  activeUsers.set(userId, connections);
+
+  if (wasOffline) {
+    await User.findByIdAndUpdate(userId, { $set: { lastSeenAt: null } }).catch(() => {});
+    emitPresence(userId, true);
+  }
+
+  socket.emit("presence:connected", { userId, online: true });
+  socket.join(`user:${userId}`);
+
+  socket.on("joinConversation", ({ userId: otherUserId } = {}) => {
+    if (!mongoose.Types.ObjectId.isValid(otherUserId) || String(otherUserId) === userId) return;
+    socket.join(conversationRoom(userId, otherUserId));
   });
-  socket.on("leaveConversation", ({ userId } = {}) => {
-    if (typeof userId !== "string" || !mongoose.Types.ObjectId.isValid(userId)) return;
-    socket.leave(conversationRoom(socket.user.id, userId));
+
+  socket.on("leaveConversation", ({ userId: otherUserId } = {}) => {
+    if (typeof otherUserId !== "string" || !mongoose.Types.ObjectId.isValid(otherUserId)) return;
+    socket.leave(conversationRoom(userId, otherUserId));
+  });
+
+  socket.on("typing:start", ({ userId: otherUserId } = {}) => {
+    if (!mongoose.Types.ObjectId.isValid(otherUserId) || String(otherUserId) === userId) return;
+    socket.to(`user:${String(otherUserId)}`).emit("typing:start", { userId });
+  });
+
+  socket.on("typing:stop", ({ userId: otherUserId } = {}) => {
+    if (!mongoose.Types.ObjectId.isValid(otherUserId) || String(otherUserId) === userId) return;
+    socket.to(`user:${String(otherUserId)}`).emit("typing:stop", { userId });
+  });
+
+  socket.on("disconnect", async () => {
+    const current = activeUsers.get(userId);
+    if (!current) return;
+    current.delete(socket.id);
+    if (current.size > 0) return;
+
+    activeUsers.delete(userId);
+    const lastSeenAt = new Date();
+    await User.findByIdAndUpdate(userId, { $set: { lastSeenAt } }).catch(() => {});
+    emitPresence(userId, false, lastSeenAt);
   });
 });
 
