@@ -21,18 +21,13 @@ async function request(path: string, options: RequestInit = {}) {
     });
 
     let body: any = null;
-    try {
-      body = await res.json();
-    } catch {
-      // Some error responses have no JSON body.
-    }
+    try { body = await res.json(); } catch { /* Some responses have no JSON body. */ }
 
     if (!res.ok) {
       const error = new Error(body?.error || body?.message || `Request failed (${res.status})`);
       (error as Error & { status?: number }).status = res.status;
       throw error;
     }
-
     return body;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
@@ -66,6 +61,7 @@ export async function loginUser(data: { email: string; password: string }) {
   });
 }
 
+export async function logoutUser(token: string) { return request("/api/auth/logout", { method: "POST", headers: authHeaders(token) }); }
 export async function fetchCurrentUser(token: string) { return request("/api/auth/me", { headers: authHeaders(token) }); }
 export const fetchMe = fetchCurrentUser;
 export async function fetchUsers(token: string) { return request("/api/users", { headers: authHeaders(token) }); }
