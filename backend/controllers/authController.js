@@ -23,6 +23,12 @@ const publicUser = (user) => ({
   createdAt: user.createdAt,
 });
 
+const issueToken = (user) => jwt.sign(
+  { id: String(user._id), tokenVersion: Number.isInteger(user.tokenVersion) ? user.tokenVersion : 0 },
+  getJwtSecret(),
+  { expiresIn: "2h", algorithm: "HS256" }
+);
+
 const registerUser = async (req, res) => {
   try {
     const { firstName, lastName, email, username, password, timezone } = req.body;
@@ -73,11 +79,25 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ error: "Invalid username/email or password" });
     }
 
-    const token = jwt.sign({ id: user._id }, getJwtSecret(), { expiresIn: "2h" });
-    res.json({ token, user: publicUser(user) });
+    res.json({ token: issueToken(user), user: publicUser(user) });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ error: "Server error during login" });
+  }
+};
+
+const logoutUser = async (req, res) => {
+  try {
+    const result = await User.findByIdAndUpdate(
+      req.user.id,
+      { $inc: { tokenVersion: 1 } },
+      { new: true, select: "tokenVersion" }
+    ).lean();
+    if (!result) return res.status(404).json({ error: "User not found" });
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ error: "Server error during logout" });
   }
 };
 
@@ -92,4 +112,4 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser, getCurrentUser };
+module.exports = { registerUser, loginUser, logoutUser, getCurrentUser };
