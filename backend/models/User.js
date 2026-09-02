@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema({
     twitter: { type: String, trim: true, maxlength: 500 },
     website: { type: String, trim: true, maxlength: 500 },
   },
+  lastSeenAt: { type: Date, default: null, index: true },
   profileViews: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   createdAt: { type: Date, default: Date.now }
 })
