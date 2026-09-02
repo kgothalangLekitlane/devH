@@ -1,6 +1,6 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { fetchCurrentUser } from '../lib/api';
+import { fetchCurrentUser, logoutUser as revokeServerSession } from '../lib/api';
 import { disconnectSocket } from '../lib/socket';
 
 interface User {
@@ -15,12 +15,7 @@ interface User {
   location?: string;
   experience?: number;
   timezone?: string;
-  socialLinks?: {
-    github?: string;
-    linkedin?: string;
-    twitter?: string;
-    website?: string;
-  };
+  socialLinks?: { github?: string; linkedin?: string; twitter?: string; website?: string };
   createdAt?: string;
 }
 
@@ -28,7 +23,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (token: string, user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -46,16 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-
     const restoreSession = async () => {
       try {
         const storedToken = localStorage.getItem('authToken');
         if (!storedToken) return;
-
         const response = await fetchCurrentUser(storedToken);
         const currentUser = response?.user;
         if (!currentUser?.id) throw new Error('Invalid current-user response');
-
         if (!cancelled) {
           setToken(storedToken);
           setUser(currentUser);
@@ -72,11 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setIsLoading(false);
       }
     };
-
     restoreSession();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -89,11 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('authUser', JSON.stringify(newUser));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const activeToken = token;
     disconnectSocket();
     setToken(null);
     setUser(null);
     clearStoredSession();
+    if (activeToken) {
+      try { await revokeServerSession(activeToken); } catch { /* Local logout still succeeds if the API is unavailable. */ }
+    }
   };
 
   return <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>{children}</AuthContext.Provider>;
