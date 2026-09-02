@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const connectDB = require("./models/db");
+const User = require("./models/User");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const securityHeaders = require("./middleware/security");
@@ -112,11 +113,20 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: corsOptions });
 global.__devheaven_io = io;
 
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers.authorization?.replace(/^Bearer\s+/i, "");
     if (!token) return next(new Error("Authentication required"));
-    socket.user = jwt.verify(token, process.env.JWT_SECRET);
+    const verified = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+    if (!verified?.id || typeof verified.id !== "string") return next(new Error("Invalid authentication token"));
+
+    const user = await User.findById(verified.id).select("tokenVersion").lean();
+    if (!user) return next(new Error("Account no longer exists"));
+    const tokenVersion = Number.isInteger(verified.tokenVersion) ? verified.tokenVersion : 0;
+    const currentVersion = Number.isInteger(user.tokenVersion) ? user.tokenVersion : 0;
+    if (tokenVersion !== currentVersion) return next(new Error("Authentication session revoked"));
+
+    socket.user = { ...verified, tokenVersion: currentVersion };
     next();
   } catch {
     next(new Error("Invalid authentication token"));
