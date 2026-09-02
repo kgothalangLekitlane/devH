@@ -55,8 +55,16 @@ const markConversationRead = async (req, res) => {
     const userId = req.user.id
     const otherUserId = req.params.userId
     if (!mongoose.Types.ObjectId.isValid(otherUserId)) return res.status(400).json({ error: "Invalid user ID" })
-    const result = await Message.updateMany({ senderId: otherUserId, receiverId: userId, read: false }, { $set: { read: true } })
-    res.json({ message: "Conversation marked as read", modifiedCount: result.modifiedCount })
+    const readAt = new Date()
+    const result = await Message.updateMany(
+      { senderId: otherUserId, receiverId: userId, read: false },
+      { $set: { read: true, readAt } },
+    )
+    const io = global.__devheaven_io
+    if (io && result.modifiedCount) {
+      io.to(`user:${otherUserId}`).emit("messagesRead", { userId, readAt })
+    }
+    res.json({ message: "Conversation marked as read", modifiedCount: result.modifiedCount, readAt })
   } catch (error) {
     console.error("Mark conversation read error:", error)
     res.status(500).json({ error: "Failed to mark conversation as read" })
@@ -94,11 +102,9 @@ const postMessage = async (req, res) => {
     const receiver = await User.findById(receiverId).select("_id")
     if (!receiver) return res.status(404).json({ error: "Receiver not found" })
 
-    const message = await Message.create({ senderId, receiverId, text: trimmedText })
+    const message = await Message.create({ senderId, receiverId, text: trimmedText, deliveredAt: new Date() })
     const chat = await populateMessageDocument(message)
     const io = global.__devheaven_io
-    // Emit once to the recipient's user room. Emitting to both the user and conversation
-    // rooms would deliver duplicate events when the recipient is in that conversation.
     if (io) io.to(`user:${receiverId}`).emit("message", chat)
 
     await createMessageNotification({ recipient: receiverId, sender: senderId, link: `/messages?user=${receiverId}` })

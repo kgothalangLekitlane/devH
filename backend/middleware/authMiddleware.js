@@ -12,8 +12,10 @@ const authenticate = (req, res, next) => {
   }
 
   try {
-    const verified = jwt.verify(match[1], process.env.JWT_SECRET);
-    if (!verified?.id) {
+    const verified = jwt.verify(match[1], process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
+    if (!verified?.id || typeof verified.id !== "string") {
       return res.status(401).json({ message: "Invalid authentication token" });
     }
     req.user = verified;
