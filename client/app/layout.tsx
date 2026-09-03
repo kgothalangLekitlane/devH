@@ -5,8 +5,8 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export const metadata: Metadata = {
-  title: 'DevHeaven - Connect with Developers Worldwide',
-  description: 'Join the global community of developers. Share projects, find jobs, connect with peers.',
+  title: 'DevHeaven — Where developers build momentum',
+  description: 'Connect, share your work, and find the opportunities that move your developer career forward.',
 }
 
 export default function RootLayout({
