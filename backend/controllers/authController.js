@@ -10,7 +10,7 @@ const getJwtSecret = () => {
 };
 
 const publicUser = (user) => ({
-  id: user._id,
+  id: String(user._id),
   firstName: user.firstName,
   lastName: user.lastName,
   email: user.email,
@@ -109,7 +109,9 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ error: "Invalid username/email or password" });
     }
 
-    const token = jwt.sign({ id: user._id }, getJwtSecret(), { expiresIn: "2h" });
+    // Always serialize the MongoDB ObjectId to a plain string in the JWT.
+    // The auth middleware intentionally rejects non-string user IDs.
+    const token = jwt.sign({ id: String(user._id) }, getJwtSecret(), { expiresIn: "2h" });
     res.json({ token, user: publicUser(user) });
   } catch (error) {
     console.error("Login error:", error);
