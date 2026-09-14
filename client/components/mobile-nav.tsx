@@ -47,14 +47,6 @@ export function MobileNav() {
     return () => window.removeEventListener("devheaven:messages-updated", handleMessageUpdate)
   }, [loadUnreadCount])
 
-  useEffect(() => {
-    if (pathname === "/messages" || pathname.startsWith("/messages/")) {
-      setUnreadCount(0)
-      return
-    }
-    void loadUnreadCount()
-  }, [pathname, loadUnreadCount])
-
   return (
     <nav aria-label="Mobile navigation" className="fixed inset-x-3 bottom-3 z-[60] rounded-2xl border border-border bg-background/90 p-1.5 shadow-2xl backdrop-blur-xl md:hidden">
       <div className="grid grid-cols-5 gap-1">
