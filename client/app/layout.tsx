@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="pb-0 md:pb-0">
+      <body className="pb-20 md:pb-0">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
