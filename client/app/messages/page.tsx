@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { io, type Socket } from "socket.io-client"
 import { useAuth } from "@/contexts/AuthContext"
-import { fetchMessagesWithUser, fetchUsers, searchCandidates, sendMessage, assetUrl, fetchConnections, requestConnection, updateConnection, markConversationRead } from "@/lib/api"
+import { fetchMessages, fetchMessagesWithUser, fetchUsers, searchCandidates, sendMessage, assetUrl, fetchConnections, requestConnection, updateConnection, markConversationRead } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -16,6 +16,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com"
 
 type UserSummary = { _id: string; firstName?: string; lastName?: string; username?: string; profileImage?: string }
 type ConnectionRecord = { _id?: string; requester?: any; recipient?: any; status?: string }
+type Conversation = { user: UserSummary; lastMessage: any }
 const idOf = (value: any) => String(value?._id || value?.id || value || "")
 
 export default function MessagesPage() {
@@ -23,6 +24,7 @@ export default function MessagesPage() {
   const searchParams = useSearchParams()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [users, setUsers] = useState<UserSummary[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
   const [selected, setSelected] = useState<UserSummary | null>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [connections, setConnections] = useState<ConnectionRecord[]>([])
@@ -40,13 +42,47 @@ export default function MessagesPage() {
     catch (err: any) { setError(err.message || "Unable to load connections") }
   }
 
+  const loadConversationHistory = async (availableUsers: UserSummary[]) => {
+    if (!token || !me?.id) return
+    try {
+      const body = await fetchMessages(token, 1, 100)
+      const history = Array.isArray(body?.messages) ? body.messages : []
+      const byUser = new Map<string, Conversation>()
+      for (const message of history) {
+        const senderId = idOf(message.senderId)
+        const receiverId = idOf(message.receiverId)
+        const otherId = senderId === String(me.id) ? receiverId : senderId
+        if (!otherId || otherId === String(me.id) || byUser.has(otherId)) continue
+        const populated = senderId === String(me.id) ? message.receiverId : message.senderId
+        const fallback = availableUsers.find(user => String(user._id) === otherId)
+        const user: UserSummary = populated && typeof populated === "object"
+          ? { _id: otherId, firstName: populated.firstName, lastName: populated.lastName, username: populated.username, profileImage: populated.profileImage }
+          : fallback || { _id: otherId }
+        byUser.set(otherId, { user, lastMessage: message })
+      }
+      setConversations(Array.from(byUser.values()))
+      const requested = searchParams.get("user")
+      if (requested) {
+        const requestedConversation = Array.from(byUser.values()).find(item => item.user._id === requested)
+        if (requestedConversation) setSelected(requestedConversation.user)
+      }
+    } catch (err: any) {
+      setError(err.message || "Unable to load conversation history")
+    }
+  }
+
   useEffect(() => {
     if (!token) return
-    fetchUsers(token).then(list => {
+    fetchUsers(token).then(async list => {
       const filtered: UserSummary[] = list.filter((u: UserSummary) => String(u._id) !== String(me?.id))
       setUsers(filtered)
       const requested = searchParams.get("user")
-      setSelected(filtered.find(u => String(u._id) === String(requested)) || filtered[0] || null)
+      if (requested) {
+        setSelected(filtered.find(u => String(u._id) === String(requested)) || null)
+      } else {
+        setSelected(current => current || null)
+      }
+      await loadConversationHistory(filtered)
     }).catch(err => setError(err.message || "Unable to load users")).finally(() => setLoading(false))
     void loadConnections()
   }, [token, me?.id, searchParams])
@@ -74,6 +110,13 @@ export default function MessagesPage() {
     fetchMessagesWithUser(selected._id, token).then(async body => {
       setMessages(body.messages || [])
       await markConversationRead(selected._id, token).catch(() => undefined)
+      setConversations(current => {
+        const latest = body.messages?.[body.messages.length - 1]
+        if (!latest) return current
+        const existing = current.find(item => item.user._id === selected._id)
+        if (existing) return current.map(item => item.user._id === selected._id ? { ...item, lastMessage: latest } : item)
+        return [{ user: selected, lastMessage: latest }, ...current]
+      })
     }).catch(err => setError(err.message || "Unable to load conversation"))
   }, [token, selected?._id])
 
@@ -93,6 +136,12 @@ export default function MessagesPage() {
         const incomingId = incoming._id || incoming.messageId
         if (incomingId && prev.some(message => String(message._id || message.messageId) === String(incomingId))) return prev
         return [...prev, incoming]
+      })
+      setConversations(current => {
+        const otherId = idOf(incoming.senderId) === String(me?.id) ? idOf(incoming.receiverId) : idOf(incoming.senderId)
+        const existing = current.find(item => item.user._id === otherId)
+        if (existing) return [{ ...existing, lastMessage: incoming }, ...current.filter(item => item.user._id !== otherId)]
+        return current
       })
       if (idOf(incoming.senderId) === String(selected._id)) void markConversationRead(selected._id, token)
     })
@@ -138,9 +187,21 @@ export default function MessagesPage() {
     const draft = text.trim(); setText(""); setError("")
     try {
       const result = await sendMessage({ receiverId: selected._id, text: draft }, token)
-      if (result.chat) setMessages(prev => prev.some(message => String(message._id || message.messageId) === String(result.chat._id)) ? prev : [...prev, result.chat])
+      if (result.chat) {
+        setMessages(prev => prev.some(message => String(message._id || message.messageId) === String(result.chat._id)) ? prev : [...prev, result.chat])
+        setConversations(current => {
+          const existing = current.find(item => item.user._id === selected._id)
+          if (existing) return [{ ...existing, lastMessage: result.chat }, ...current.filter(item => item.user._id !== selected._id)]
+          return [{ user: selected, lastMessage: result.chat }, ...current]
+        })
+      }
     } catch (err: any) { setText(draft); setError(err.message || "Unable to send message") }
   }
+
+  const visibleConversations = searchTerm.trim() ? conversations.filter(item => {
+    const value = `${item.user.firstName || ""} ${item.user.lastName || ""} ${item.user.username || ""}`.toLowerCase()
+    return value.includes(searchTerm.trim().toLowerCase())
+  }) : conversations
 
   return (
     <main className="min-h-screen bg-background p-4">
@@ -148,16 +209,12 @@ export default function MessagesPage() {
         <header className="mb-6 flex items-center justify-between"><Link href="/dashboard" className="flex items-center gap-2 font-semibold"><Code2 className="h-6 w-6" />DevHeaven</Link><span className={`text-sm ${socketReady ? "text-emerald-600" : "text-muted-foreground"}`}>{socketReady ? "Connected" : "Connecting…"}</span></header>
         {error && <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm">{error}</div>}
         <div className="grid gap-4 md:grid-cols-[300px_1fr]">
-          <Card><CardHeader><CardTitle>People</CardTitle><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search people…" className="pl-9" /></div></CardHeader><CardContent className="space-y-2">{searching && <p className="text-sm text-muted-foreground">Searching…</p>}{!searching && !loading && users.length === 0 && <p className="text-sm text-muted-foreground">No people found.</p>}{users.map(user => <button key={user._id} onClick={() => setSelected(user)} className={`flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selected?._id === user._id ? "bg-muted" : ""}`}><Avatar><AvatarImage src={assetUrl(user.profileImage)} /><AvatarFallback>{`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` || "U"}</AvatarFallback></Avatar><span className="min-w-0"><span className="block truncate font-medium">{`${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username}</span><span className="block truncate text-xs text-muted-foreground">@{user.username || "user"}</span></span></button>)}</CardContent></Card>
+          <Card><CardHeader><CardTitle>Conversations</CardTitle><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search conversations…" className="pl-9" /></div></CardHeader><CardContent className="space-y-2">{searching && <p className="text-sm text-muted-foreground">Searching…</p>}{!searching && loading && <p className="text-sm text-muted-foreground">Loading conversations…</p>}{!searching && !loading && visibleConversations.length === 0 && <p className="text-sm text-muted-foreground">No conversations found.</p>}{visibleConversations.map(item => { const user = item.user; return <button key={user._id} onClick={() => setSelected(user)} className={`flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selected?._id === user._id ? "bg-muted" : ""}`}><Avatar><AvatarImage src={assetUrl(user.profileImage)} /><AvatarFallback>{`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` || "U"}</AvatarFallback></Avatar><span className="min-w-0"><span className="block truncate font-medium">{`${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username || "User"}</span><span className="block truncate text-xs text-muted-foreground">{item.lastMessage?.text || "Conversation"}</span></span></button>})}</CardContent></Card>
           <Card className="flex min-h-[600px] flex-col overflow-hidden"><CardHeader className="border-b"><div className="flex items-center justify-between gap-3"><CardTitle>{conversationTitle}</CardTitle>{selected && <div className="flex items-center gap-2">{connectionState === "none" && <Button size="sm" onClick={() => void handleConnect()} disabled={connectionLoading}><UserPlus className="mr-2 h-4 w-4" />{connectionLoading ? "Sending…" : "Connect"}</Button>}{connectionState === "outgoing" && <Button size="sm" variant="secondary" disabled>Request Sent</Button>}{connectionState === "incoming" && <><Button size="sm" onClick={() => void handleConnectionDecision("accepted")} disabled={connectionLoading}><Check className="mr-2 h-4 w-4" />Accept</Button><Button size="sm" variant="outline" onClick={() => void handleConnectionDecision("rejected")} disabled={connectionLoading}><X className="mr-2 h-4 w-4" />Reject</Button></>}{connectionState === "accepted" && <Button size="sm" variant="secondary" disabled>Connected</Button>}{connectionState === "rejected" && <Button size="sm" onClick={() => void handleConnect()} disabled={connectionLoading}><UserPlus className="mr-2 h-4 w-4" />Connect Again</Button>}</div>}</div></CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
               <div className="flex-1 space-y-3 overflow-y-auto px-4 py-6 sm:px-6">
                 {messages.length === 0 && selected && <div className="flex h-full min-h-[420px] items-center justify-center text-center text-sm text-muted-foreground"><div><p className="font-medium">No messages yet</p><p>Start the conversation with {conversationTitle}.</p></div></div>}
-                {messages.map((message, index) => {
-                  const mine = idOf(message.senderId) === String(me?.id)
-                  const sender = mine ? me : selected
-                  return <div key={String(message._id || message.messageId || index)} className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}><div className={`flex max-w-[78%] items-end gap-2 ${mine ? "flex-row-reverse" : "flex-row"}`}><Avatar className="h-8 w-8 shrink-0"><AvatarImage src={assetUrl(sender?.profileImage)} /><AvatarFallback>{`${sender?.firstName?.[0] || ""}${sender?.lastName?.[0] || ""}` || "U"}</AvatarFallback></Avatar><div className={`rounded-2xl px-4 py-2.5 shadow-sm ${mine ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-muted text-foreground"}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</p><p className={`mt-1 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</p></div></div></div>
-                })}
+                {messages.map((message, index) => { const mine = idOf(message.senderId) === String(me?.id); const sender = mine ? me : selected; return <div key={String(message._id || message.messageId || index)} className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}><div className={`flex max-w-[78%] items-end gap-2 ${mine ? "flex-row-reverse" : "flex-row"}`}><Avatar className="h-8 w-8 shrink-0"><AvatarImage src={assetUrl(sender?.profileImage)} /><AvatarFallback>{`${sender?.firstName?.[0] || ""}${sender?.lastName?.[0] || ""}` || "U"}</AvatarFallback></Avatar><div className={`rounded-2xl px-4 py-2.5 shadow-sm ${mine ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-muted text-foreground"}`}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</p><p className={`mt-1 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</p></div></div></div> })}
                 <div ref={bottomRef} />
               </div>
               <div className="border-t bg-background p-3 sm:p-4"><div className="flex gap-2"><Input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send() } }} placeholder={selected ? "Write a message…" : "Select someone to chat"} disabled={!selected} className="min-h-10" /><Button onClick={() => void send()} disabled={!selected || !text.trim()} aria-label="Send message"><Send className="h-4 w-4" /></Button></div><p className="mt-1 px-1 text-[11px] text-muted-foreground">Enter to send</p></div>
