@@ -11,6 +11,8 @@ export const assetUrl = (value?: string | null) => {
   return `${apiUrl}${value.startsWith("/") ? value : `/${value}`}`;
 };
 
+export const isApiUnauthorized = (error: unknown) => Number((error as Error & { status?: number })?.status) === 401;
+
 async function request(path: string, options: RequestInit = {}) {
   const apiUrl = getApiUrl();
   const controller = new AbortController();
@@ -25,7 +27,16 @@ async function request(path: string, options: RequestInit = {}) {
     const res = await fetch(`${apiUrl}${path}`, { ...options, signal: controller.signal, headers: { Accept: "application/json", ...(options.headers || {}) } });
     let body: any = null;
     try { body = await res.json(); } catch {}
-    if (!res.ok) { const error = new Error(body?.error || body?.message || `Request failed (${res.status})`); (error as Error & { status?: number }).status = res.status; throw error; }
+    if (!res.ok) {
+      const error = new Error(body?.error || body?.message || `Request failed (${res.status})`);
+      (error as Error & { status?: number }).status = res.status;
+      const hasAuthorization = typeof options.headers === "object" && options.headers !== null &&
+        "Authorization" in options.headers;
+      if (res.status === 401 && hasAuthorization && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("devheaven:auth-expired", { detail: { path, message: error.message } }));
+      }
+      throw error;
+    }
     return body;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw new Error("The request timed out. Please check your connection and try again.");
@@ -44,7 +55,7 @@ export async function fetchUserById(id: string) { return request(`/api/users/${e
 export async function recordProfileView(id: string, token: string) { return request(`/api/users/${encodeURIComponent(id)}/view`, { method: "POST", headers: authHeaders(token) }); }
 export async function updateMyProfile(data: FormData, token: string) { return request("/api/users/me", { method: "PUT", headers: authHeaders(token), body: data }); }
 export async function searchCandidates(query: string, token: string) { return request(`/api/users/search?q=${encodeURIComponent(query)}`, { headers: authHeaders(token) }); }
-export async function fetchPosts(page = 1, limit = 20) { const normalizedPage = typeof page === "number" && Number.isFinite(page) && page > 0 ? page : 1; const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : 20; const body = await request(`/api/posts?page=${normalizedPage}&limit=${normalizedLimit}`); return body.posts || body; }
+export async function fetchPosts(page = 1, limit = 20) { const normalizedPage = typeof page === "number" && Number.isFinite(page) && page > 0 ? page : 1; const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : 20; return request(`/api/posts?page=${normalizedPage}&limit=${normalizedLimit}`).then((body: any) => body.posts || body); }
 export async function createPost(data: { title: string; content: string; tags?: string[] }, token: string) { return request("/api/posts", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function likePost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/like`, { method: "POST", headers: authHeaders(token) }); }
 export async function fetchComments(postId: string, _token?: string) { return request(`/api/posts/${encodeURIComponent(postId)}`).then((body: any) => body.comments || []); }
