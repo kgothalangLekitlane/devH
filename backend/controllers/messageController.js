@@ -105,7 +105,11 @@ const postMessage = async (req, res) => {
     const message = await Message.create({ senderId, receiverId, text: trimmedText, deliveredAt: new Date() })
     const chat = await populateMessageDocument(message)
     const io = global.__devheaven_io
-    if (io) io.to(`user:${receiverId}`).emit("message", chat)
+    if (io) {
+      const recipientRoom = `user:${receiverId}`
+      io.to(recipientRoom).emit("message", chat)
+      io.to(recipientRoom).emit("receiveMessage", chat)
+    }
 
     await createMessageNotification({ recipient: receiverId, sender: senderId, link: `/messages?user=${receiverId}` })
     res.status(201).json({ message: "Message sent", chat })
