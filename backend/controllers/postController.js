@@ -4,11 +4,8 @@ const mongoose = require("mongoose")
 
 const createNotification = async ({ recipient, sender, type, text, link }) => {
   if (!recipient || String(recipient) === String(sender)) return
-  try {
-    await Notification.create({ recipient, sender, type, text, link })
-  } catch (error) {
-    console.error("Create notification error:", error)
-  }
+  try { await Notification.create({ recipient, sender, type, text, link }) }
+  catch (error) { console.error("Create notification error:", error) }
 }
 
 const postPopulate = query => query
@@ -22,10 +19,7 @@ const getPosts = async (req, res) => {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 50)
     const posts = await postPopulate(Post.find().sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit))
     res.json({ posts, page, limit })
-  } catch (error) {
-    console.error("Fetch posts error:", error)
-    res.status(500).json({ error: "Failed to fetch posts" })
-  }
+  } catch (error) { console.error("Fetch posts error:", error); res.status(500).json({ error: "Failed to fetch posts" }) }
 }
 
 const createPost = async (req, res) => {
@@ -35,14 +29,10 @@ const createPost = async (req, res) => {
     const tags = Array.isArray(req.body.tags) ? req.body.tags.slice(0, 20).map(tag => String(tag).trim()).filter(Boolean) : []
     if (!title || !content) return res.status(400).json({ error: "Title and content are required" })
     if (title.length > 200 || content.length > 20000) return res.status(400).json({ error: "Post is too long" })
-
     const post = await Post.create({ title, content, author: req.user.id, tags })
     await post.populate("author", "firstName lastName username profileImage")
     res.status(201).json({ message: "Post created", post })
-  } catch (error) {
-    console.error("Create post error:", error)
-    res.status(500).json({ error: "Failed to create post" })
-  }
+  } catch (error) { console.error("Create post error:", error); res.status(500).json({ error: "Failed to create post" }) }
 }
 
 const getPost = async (req, res) => {
@@ -51,47 +41,28 @@ const getPost = async (req, res) => {
     const post = await postPopulate(Post.findById(req.params.id))
     if (!post) return res.status(404).json({ error: "Post not found" })
     res.json(post)
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch post" })
-  }
+  } catch (error) { res.status(500).json({ error: "Failed to fetch post" }) }
 }
 
 const likePost = async (req, res) => {
   try {
-    const postId = req.params.id
-    const userId = req.user.id
+    const postId = req.params.id; const userId = req.user.id
     if (!mongoose.Types.ObjectId.isValid(postId)) return res.status(400).json({ error: "Invalid post ID" })
-
     const post = await Post.findById(postId).select("likes author")
     if (!post) return res.status(404).json({ error: "Post not found" })
     const hasLiked = post.likes.some(id => id.toString() === String(userId))
-
-    const updated = await Post.findByIdAndUpdate(
-      postId,
-      hasLiked ? { $pull: { likes: userId } } : { $addToSet: { likes: userId } },
-      { new: true }
-    ).select("likes")
-
-    if (!hasLiked) {
-      await createNotification({ recipient: post.author, sender: userId, type: "like", text: "liked your post", link: `/dashboard?post=${postId}` })
-    }
+    const updated = await Post.findByIdAndUpdate(postId, hasLiked ? { $pull: { likes: userId } } : { $addToSet: { likes: userId } }, { new: true }).select("likes")
+    if (!hasLiked) await createNotification({ recipient: post.author, sender: userId, type: "like", text: "liked your post", link: `/dashboard?post=${postId}` })
     res.json({ message: hasLiked ? "Post unliked" : "Post liked", liked: !hasLiked, likes: updated.likes })
-  } catch (error) {
-    console.error("Like post error:", error)
-    res.status(500).json({ error: "Failed to like post" })
-  }
+  } catch (error) { console.error("Like post error:", error); res.status(500).json({ error: "Failed to like post" }) }
 }
 
 const repostPost = async (req, res) => {
   try {
-    const postId = req.params.id
-    const userId = req.user.id
+    const postId = req.params.id; const userId = req.user.id
     if (!mongoose.Types.ObjectId.isValid(postId)) return res.status(400).json({ error: "Invalid post ID" })
-
     const original = await Post.findById(postId).select("title content tags author repostOf")
     if (!original) return res.status(404).json({ error: "Post not found" })
-
-    // Always repost the original source post, not an existing repost.
     const sourceId = original.repostOf || original._id
     const source = original.repostOf ? await Post.findById(sourceId).select("title content tags author") : original
     if (!source) return res.status(404).json({ error: "Original post not found" })
@@ -100,16 +71,14 @@ const repostPost = async (req, res) => {
     const existing = await Post.findOne({ author: userId, repostOf: source._id }).select("_id")
     if (existing) {
       await Post.findByIdAndDelete(existing._id)
-      await Post.findByIdAndUpdate(source._id, { $pull: { reposts: userId } })
-      return res.json({ message: "Repost removed", reposted: false })
+      const updated = await Post.findByIdAndUpdate(source._id, { $pull: { reposts: userId } }, { new: true }).select("reposts")
+      return res.json({ message: "Repost removed", reposted: false, sourceId: String(source._id), reposts: updated?.reposts || [] })
     }
 
     await Post.create({ title: source.title, content: source.content, tags: source.tags, author: userId, repostOf: source._id })
-    await Post.findByIdAndUpdate(source._id, { $addToSet: { reposts: userId } })
+    const updated = await Post.findByIdAndUpdate(source._id, { $addToSet: { reposts: userId } }, { new: true }).select("reposts")
     await createNotification({ recipient: source.author, sender: userId, type: "repost", text: "reposted your post", link: `/dashboard?post=${source._id}` })
-
-    const updated = await Post.findById(source._id).select("reposts")
-    res.status(201).json({ message: "Post reposted", reposted: true, reposts: updated?.reposts || [] })
+    res.status(201).json({ message: "Post reposted", reposted: true, sourceId: String(source._id), reposts: updated?.reposts || [] })
   } catch (error) {
     console.error("Repost post error:", error)
     if (error?.code === 11000) return res.status(409).json({ error: "You have already reposted this post" })
@@ -119,22 +88,16 @@ const repostPost = async (req, res) => {
 
 const addComment = async (req, res) => {
   try {
-    const postId = req.params.id
-    const text = String(req.body.text || "").trim()
+    const postId = req.params.id; const text = String(req.body.text || "").trim()
     if (!mongoose.Types.ObjectId.isValid(postId)) return res.status(400).json({ error: "Invalid post ID" })
     if (!text || text.length > 2000) return res.status(400).json({ error: "Comment must be between 1 and 2000 characters" })
-
     const post = await Post.findById(postId)
     if (!post) return res.status(404).json({ error: "Post not found" })
-    post.comments.push({ user: req.user.id, text })
-    await post.save()
+    post.comments.push({ user: req.user.id, text }); await post.save()
     await createNotification({ recipient: post.author, sender: req.user.id, type: "comment", text: "commented on your post", link: `/dashboard?post=${postId}` })
     await post.populate("comments.user", "firstName lastName username profileImage")
     res.status(201).json({ message: "Comment added", comment: post.comments[post.comments.length - 1] })
-  } catch (error) {
-    console.error("Add comment error:", error)
-    res.status(500).json({ error: "Failed to add comment" })
-  }
+  } catch (error) { console.error("Add comment error:", error); res.status(500).json({ error: "Failed to add comment" }) }
 }
 
 const deletePost = async (req, res) => {
@@ -145,12 +108,8 @@ const deletePost = async (req, res) => {
     if (!post) return res.status(404).json({ error: "Post not found" })
     if (String(post.author) !== String(req.user.id)) return res.status(403).json({ error: "You can only delete your own posts" })
     if (post.repostOf) await Post.findByIdAndUpdate(post.repostOf, { $pull: { reposts: req.user.id } })
-    await Post.findByIdAndDelete(postId)
-    res.json({ message: "Post deleted", postId })
-  } catch (error) {
-    console.error("Delete post error:", error)
-    res.status(500).json({ error: "Failed to delete post" })
-  }
+    await Post.findByIdAndDelete(postId); res.json({ message: "Post deleted", postId })
+  } catch (error) { console.error("Delete post error:", error); res.status(500).json({ error: "Failed to delete post" }) }
 }
 
 const deleteComment = async (req, res) => {
@@ -162,13 +121,8 @@ const deleteComment = async (req, res) => {
     const comment = post.comments.id(commentId)
     if (!comment) return res.status(404).json({ error: "Comment not found" })
     if (String(comment.user) !== String(req.user.id)) return res.status(403).json({ error: "You can only delete your own comments" })
-    comment.deleteOne()
-    await post.save()
-    res.json({ message: "Comment deleted", commentId })
-  } catch (error) {
-    console.error("Delete comment error:", error)
-    res.status(500).json({ error: "Failed to delete comment" })
-  }
+    comment.deleteOne(); await post.save(); res.json({ message: "Comment deleted", commentId })
+  } catch (error) { console.error("Delete comment error:", error); res.status(500).json({ error: "Failed to delete comment" }) }
 }
 
 module.exports = { getPosts, createPost, getPost, likePost, repostPost, addComment, deletePost, deleteComment }
