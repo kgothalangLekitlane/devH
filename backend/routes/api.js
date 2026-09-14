@@ -5,7 +5,7 @@ const { getUsers, getUserById, searchCandidates } = require('../controllers/user
 const { getMessages, getMessagesWithUser, postMessage } = require('../controllers/messageController');
 const { getRecruiters, createRecruiter, postJob, getJobs } = require('../controllers/recruiterController');
 const { getResources, addResource } = require('../controllers/resourceController');
-const { getPosts, createPost } = require('../controllers/postController');
+const { getPosts, createPost, getPost, likePost, repostPost, addComment, deletePost, deleteComment } = require('../controllers/postController');
 const { registerUser, loginUser } = require('../controllers/authController');
 const authenticate = require('../middleware/authMiddleware');
 const upload = require('../middleware/upload');
@@ -28,7 +28,13 @@ router.get('/users/:id', getUserById);
 
 // Posts
 router.get('/posts', getPosts);
+router.get('/posts/:id', getPost);
 router.post('/posts', authenticate, createPost);
+router.post('/posts/:id/like', authenticate, likePost);
+router.post('/posts/:id/repost', authenticate, repostPost);
+router.post('/posts/:id/comments', authenticate, addComment);
+router.delete('/posts/:id', authenticate, deletePost);
+router.delete('/posts/:id/comments/:commentId', authenticate, deleteComment);
 
 // Messages
 router.get('/messages', authenticate, getMessages);
