@@ -13,6 +13,8 @@ const postSchema = new mongoose.Schema({
   tags: [{ type: String, trim: true, maxlength: 50 }],
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [commentSchema],
+  reposts: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  repostOf: { type: mongoose.Schema.Types.ObjectId, ref: "Post", default: null, index: true },
   createdAt: { type: Date, default: Date.now, index: true },
   updatedAt: { type: Date, default: Date.now }
 })
@@ -20,6 +22,7 @@ const postSchema = new mongoose.Schema({
 postSchema.index({ createdAt: -1 })
 postSchema.index({ author: 1, createdAt: -1 })
 postSchema.index({ tags: 1, createdAt: -1 })
+postSchema.index({ author: 1, repostOf: 1 }, { unique: true, partialFilterExpression: { repostOf: { $type: "objectId" } } })
 
 postSchema.pre("save", function (next) {
   this.updatedAt = new Date()
