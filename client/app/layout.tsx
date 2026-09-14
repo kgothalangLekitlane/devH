@@ -4,6 +4,7 @@ import './jobs/jobs-dark-mode.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/components/theme-provider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { MobileNav } from '@/components/mobile-nav'
 
 export const metadata: Metadata = {
   title: 'DevHeaven — Where developers build momentum',
@@ -17,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className="pb-0 md:pb-0">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -27,6 +28,7 @@ export default function RootLayout({
           <ErrorBoundary>
             <AuthProvider>
               {children}
+              <MobileNav />
             </AuthProvider>
           </ErrorBoundary>
         </ThemeProvider>
