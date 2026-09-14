@@ -30,11 +30,8 @@ async function request(path: string, options: RequestInit = {}) {
     if (!res.ok) {
       const error = new Error(body?.error || body?.message || `Request failed (${res.status})`);
       (error as Error & { status?: number }).status = res.status;
-      const hasAuthorization = typeof options.headers === "object" && options.headers !== null &&
-        "Authorization" in options.headers;
-      if (res.status === 401 && hasAuthorization && typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("devheaven:auth-expired", { detail: { path, message: error.message } }));
-      }
+      const hasAuthorization = typeof options.headers === "object" && options.headers !== null && "Authorization" in options.headers;
+      if (res.status === 401 && hasAuthorization && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("devheaven:auth-expired", { detail: { path, message: error.message } }));
       throw error;
     }
     return body;
@@ -58,6 +55,7 @@ export async function searchCandidates(query: string, token: string) { return re
 export async function fetchPosts(page = 1, limit = 20) { const normalizedPage = typeof page === "number" && Number.isFinite(page) && page > 0 ? page : 1; const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : 20; return request(`/api/posts?page=${normalizedPage}&limit=${normalizedLimit}`).then((body: any) => body.posts || body); }
 export async function createPost(data: { title: string; content: string; tags?: string[] }, token: string) { return request("/api/posts", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function likePost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/like`, { method: "POST", headers: authHeaders(token) }); }
+export async function repostPost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/repost`, { method: "POST", headers: authHeaders(token) }); }
 export async function fetchComments(postId: string, _token?: string) { return request(`/api/posts/${encodeURIComponent(postId)}`).then((body: any) => body.comments || []); }
 export async function addComment(postId: string, text: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/comments`, { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); }
 export async function deletePost(postId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE", headers: authHeaders(token) }); }
