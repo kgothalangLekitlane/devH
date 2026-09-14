@@ -1,5 +1,6 @@
 const User = require("../models/User")
 const mongoose = require("mongoose")
+const jwt = require("jsonwebtoken")
 const { GridFSBucket, ObjectId } = require("mongodb")
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -35,18 +36,31 @@ const extractGithubUsername = (value) => {
 }
 
 const normalizeGithubUrl = (value) => {
-  const username = extractGithubUsername(value)
-  return username ? `https://github.com/${username}` : ""
+  const input = String(value ?? "").trim()
+  if (!input) return ""
+  const username = extractGithubUsername(input)
+  return username ? `https://github.com/${username}` : null
 }
 
 const toPublicUser = (user) => {
   const value = user?.toObject ? user.toObject() : { ...user }
-  if (value.profileImage?.startsWith("gridfs:")) value.profileImage = `/api/users/${value._id}/avatar`
+  const id = String(value._id ?? value.id ?? "")
+  if (value.profileImage?.startsWith("gridfs:")) value.profileImage = `/api/users/${id}/avatar`
+  value.id = id
+  delete value._id
   value.profileViewCount = Array.isArray(value.profileViews) ? value.profileViews.length : 0
   delete value.profileViews
   delete value.email
+  delete value.password
   return value
 }
+
+const getJwtSecret = () => {
+  if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not configured")
+  return process.env.JWT_SECRET
+}
+
+const issueSessionToken = (userId) => jwt.sign({ id: String(userId) }, getJwtSecret(), { expiresIn: "2h" })
 
 const storeProfileImage = async (file, userId) => {
   if (!file?.buffer) return null
@@ -163,9 +177,10 @@ const updateMyProfile = async (req, res) => {
     }
     if (updates.openToWork !== undefined) updates.openToWork = String(updates.openToWork) === "true" || updates.openToWork === true
     if (updates.workPreference !== undefined && !["remote", "hybrid", "onsite", "flexible", ""].includes(String(updates.workPreference))) return res.status(400).json({ error: "Invalid work preference" })
+
     if (req.body.github !== undefined) {
       const github = normalizeGithubUrl(req.body.github)
-      if (!github) return res.status(400).json({ error: "Enter a valid GitHub profile URL, for example https://github.com/username" })
+      if (github === null) return res.status(400).json({ error: "Enter a valid GitHub profile URL, for example https://github.com/username" })
       const current = await User.findById(req.user.id, "socialLinks")
       updates.socialLinks = {
         github,
@@ -194,7 +209,12 @@ const updateMyProfile = async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" })
 
     if (updates.profileImage && previousProfileImage && previousProfileImage !== updates.profileImage) await deleteGridFsImage(previousProfileImage)
-    res.json({ user: toPublicUser(user) })
+
+    // Rotate the access token after a successful profile mutation. This makes
+    // the session deterministic even when the client arrived with a legacy
+    // token that had a serialized MongoDB ObjectId.
+    const token = issueSessionToken(user._id)
+    res.json({ user: toPublicUser(user), token })
   } catch (error) {
     console.error("Update profile error:", error)
     res.status(400).json({ error: error.message || "Failed to update profile" })
