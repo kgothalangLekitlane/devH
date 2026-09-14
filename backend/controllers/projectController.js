@@ -12,6 +12,13 @@ const normalizeStack = (value) => Array.isArray(value)
   ? value.map((item) => String(item).trim()).filter(Boolean).slice(0, 20)
   : String(value || "").split(",").map((item) => item.trim()).filter(Boolean).slice(0, 20);
 
+const cleanDate = (value) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid project date");
+  return date;
+};
+
 const serialize = (project) => ({
   id: project._id,
   title: project.title,
@@ -19,6 +26,12 @@ const serialize = (project) => ({
   techStack: project.techStack,
   githubUrl: project.githubUrl,
   liveUrl: project.liveUrl,
+  imageUrl: project.imageUrl,
+  category: project.category,
+  status: project.status,
+  featured: project.featured,
+  startedAt: project.startedAt,
+  completedAt: project.completedAt,
   createdAt: project.createdAt,
   updatedAt: project.updatedAt,
   owner: project.owner ? {
@@ -32,7 +45,7 @@ const serialize = (project) => ({
 
 const listProjects = async (req, res) => {
   try {
-    const projects = await Project.find({}).sort({ createdAt: -1 }).populate("owner", "firstName lastName username profileImage");
+    const projects = await Project.find({}).sort({ featured: -1, updatedAt: -1 }).populate("owner", "firstName lastName username profileImage");
     res.json({ projects: projects.map(serialize) });
   } catch (error) {
     console.error("List projects error:", error);
@@ -54,10 +67,8 @@ const getProject = async (req, res) => {
 
 const createProject = async (req, res) => {
   try {
-    const { title, description, techStack, githubUrl, liveUrl } = req.body;
-    if (!String(title || "").trim() || !String(description || "").trim()) {
-      return res.status(400).json({ message: "Title and description are required" });
-    }
+    const { title, description, techStack, githubUrl, liveUrl, imageUrl, category, status, featured, startedAt, completedAt } = req.body;
+    if (!String(title || "").trim() || !String(description || "").trim()) return res.status(400).json({ message: "Title and description are required" });
     const project = await Project.create({
       owner: req.user.id,
       title: String(title).trim(),
@@ -65,6 +76,12 @@ const createProject = async (req, res) => {
       techStack: normalizeStack(techStack),
       githubUrl: cleanUrl(githubUrl),
       liveUrl: cleanUrl(liveUrl),
+      imageUrl: cleanUrl(imageUrl),
+      category: String(category || "").trim() || undefined,
+      status: status || "completed",
+      featured: Boolean(featured),
+      startedAt: cleanDate(startedAt),
+      completedAt: cleanDate(completedAt),
     });
     await project.populate("owner", "firstName lastName username profileImage");
     res.status(201).json({ project: serialize(project) });
@@ -79,12 +96,18 @@ const updateProject = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: "Invalid project id" });
     const project = await Project.findOne({ _id: req.params.id, owner: req.user.id });
     if (!project) return res.status(404).json({ message: "Project not found or not owned by you" });
-    const { title, description, techStack, githubUrl, liveUrl } = req.body;
+    const { title, description, techStack, githubUrl, liveUrl, imageUrl, category, status, featured, startedAt, completedAt } = req.body;
     if (title !== undefined) project.title = String(title).trim();
     if (description !== undefined) project.description = String(description).trim();
     if (techStack !== undefined) project.techStack = normalizeStack(techStack);
     if (githubUrl !== undefined) project.githubUrl = cleanUrl(githubUrl);
     if (liveUrl !== undefined) project.liveUrl = cleanUrl(liveUrl);
+    if (imageUrl !== undefined) project.imageUrl = cleanUrl(imageUrl);
+    if (category !== undefined) project.category = String(category).trim();
+    if (status !== undefined) project.status = status;
+    if (featured !== undefined) project.featured = Boolean(featured);
+    if (startedAt !== undefined) project.startedAt = cleanDate(startedAt);
+    if (completedAt !== undefined) project.completedAt = cleanDate(completedAt);
     await project.save();
     await project.populate("owner", "firstName lastName username profileImage");
     res.json({ project: serialize(project) });
