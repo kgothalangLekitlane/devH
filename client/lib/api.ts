@@ -53,7 +53,7 @@ export async function deletePost(postId: string, token: string) { return request
 export async function deleteComment(postId: string, commentId: string, token: string) { return request(`/api/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { method: "DELETE", headers: authHeaders(token) }); }
 export async function fetchMessages(token: string, page = 1, limit = 100) { return request(`/api/messages?page=${page}&limit=${limit}`, { headers: authHeaders(token) }); }
 export async function fetchUnreadMessageCount(token: string) { return request("/api/messages/unread/count", { headers: authHeaders(token) }); }
-export async function getUnreadCount(token: string) { const body: any = await fetchUnreadMessageCount(token); return Number(body?.count ?? body?.unreadCount ?? 0); }
+export async function getUnreadCount(token: string) { const body: any = await request("/api/notifications/unread/count", { headers: authHeaders(token) }); return Number(body?.count ?? body?.unreadCount ?? 0); }
 export async function markConversationRead(userId: string, token: string) { return request(`/api/messages/${encodeURIComponent(userId)}/read`, { method: "PATCH", headers: authHeaders(token) }); }
 export async function fetchMessagesWithUser(userId: string, token: string, page = 1, limit = 100) { return request(`/api/messages/${encodeURIComponent(userId)}?page=${page}&limit=${limit}`, { headers: authHeaders(token) }); }
 export async function sendMessage(data: { receiverId: string; text: string }, token: string) { return request("/api/messages", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
