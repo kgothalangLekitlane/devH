@@ -45,8 +45,18 @@ export default function MessagesPage() {
   const loadConversationHistory = async (availableUsers: UserSummary[]) => {
     if (!token || !me?.id) return
     try {
-      const body = await fetchMessages(token, 1, 100)
-      const history = Array.isArray(body?.messages) ? body.messages : []
+      const history: any[] = []
+      const pageSize = 100
+
+      // The API is paginated and returns newest messages first. Keep loading
+      // pages until the final page so older conversations cannot disappear.
+      for (let page = 1; page <= 100; page += 1) {
+        const body = await fetchMessages(token, page, pageSize)
+        const pageMessages = Array.isArray(body?.messages) ? body.messages : []
+        history.push(...pageMessages)
+        if (pageMessages.length < pageSize) break
+      }
+
       const byUser = new Map<string, Conversation>()
       for (const message of history) {
         const senderId = idOf(message.senderId)
@@ -60,10 +70,17 @@ export default function MessagesPage() {
           : fallback || { _id: otherId }
         byUser.set(otherId, { user, lastMessage: message })
       }
-      setConversations(Array.from(byUser.values()))
+
+      const sortedConversations = Array.from(byUser.values()).sort((a, b) => {
+        const aTime = new Date(a.lastMessage?.createdAt || 0).getTime()
+        const bTime = new Date(b.lastMessage?.createdAt || 0).getTime()
+        return bTime - aTime
+      })
+      setConversations(sortedConversations)
+
       const requested = searchParams.get("user")
       if (requested) {
-        const requestedConversation = Array.from(byUser.values()).find(item => item.user._id === requested)
+        const requestedConversation = sortedConversations.find(item => item.user._id === requested)
         if (requestedConversation) setSelected(requestedConversation.user)
       }
     } catch (err: any) {
