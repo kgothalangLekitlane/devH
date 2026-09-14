@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
 import { BriefcaseBusiness, Code2, FileText, FolderKanban, Search, Users, RefreshCw, ArrowUpRight } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { fetchJobs, fetchPosts, fetchProjects, fetchResources, searchCandidates } from "@/lib/api"
@@ -13,19 +12,23 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { assetUrl } from "@/lib/api"
 
 type Result = { id: string; title: string; description?: string; href: string; meta?: string; image?: string; tags?: string[] }
-
 type Results = { people: Result[]; projects: Result[]; jobs: Result[]; resources: Result[]; posts: Result[] }
 
 const emptyResults: Results = { people: [], projects: [], jobs: [], resources: [], posts: [] }
 
 export default function SearchPage() {
-  const params = useSearchParams()
   const { token, isLoading: authLoading } = useAuth()
-  const initialQuery = params.get("q")?.trim() || ""
-  const [query, setQuery] = useState(initialQuery)
+  const [initialQuery, setInitialQuery] = useState("")
+  const [query, setQuery] = useState("")
   const [results, setResults] = useState<Results>(emptyResults)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("q")?.trim() || ""
+    setInitialQuery(value)
+    setQuery(value)
+  }, [])
 
   useEffect(() => { setQuery(initialQuery) }, [initialQuery])
 
