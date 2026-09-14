@@ -1,22 +1,27 @@
 "use client"
 
 import { FormEvent, useEffect, useRef, useState } from "react"
+import { Search, X } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import { Search } from "lucide-react"
 
 export function GlobalSearch() {
   const router = useRouter()
   const pathname = usePathname()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault()
-        inputRef.current?.focus()
-        inputRef.current?.select()
+        setOpen(true)
+        requestAnimationFrame(() => {
+          inputRef.current?.focus()
+          inputRef.current?.select()
+        })
       }
+      if (event.key === "Escape") setOpen(false)
     }
 
     window.addEventListener("keydown", handleShortcut)
@@ -24,36 +29,54 @@ export function GlobalSearch() {
   }, [])
 
   useEffect(() => {
-    if (pathname === "/search") return
     setQuery("")
+    setOpen(false)
   }, [pathname])
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = query.trim()
-    if (!value) {
-      router.push("/search")
-      return
-    }
-    router.push(`/search?q=${encodeURIComponent(value)}`)
+    setOpen(false)
+    router.push(value ? `/search?q=${encodeURIComponent(value)}` : "/search")
   }
 
+  if (pathname === "/search") return null
+
   return (
-    <form onSubmit={submit} className="fixed left-1/2 top-3 z-[55] hidden w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 md:block">
-      <div className="flex items-center rounded-xl border border-border bg-background/90 shadow-lg backdrop-blur-xl focus-within:ring-2 focus-within:ring-ring">
-        <Search className="ml-3 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search people, projects, jobs..."
-          aria-label="Search DevHeaven"
-          className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
-        />
-        <kbd className="mr-2 hidden rounded-md border border-border bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground lg:inline-flex">
-          Ctrl K
-        </kbd>
-      </div>
-    </form>
+    <div className="fixed right-4 top-4 z-40">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(true)
+            requestAnimationFrame(() => inputRef.current?.focus())
+          }}
+          className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground shadow-sm transition-colors hover:bg-muted"
+          aria-label="Open search"
+        >
+          <Search className="h-4 w-4" />
+          <span className="hidden sm:inline">Search</span>
+          <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] lg:inline">Ctrl K</kbd>
+        </button>
+      ) : (
+        <form onSubmit={submit} className="w-[min(420px,calc(100vw-2rem))]">
+          <div className="flex items-center rounded-xl border border-border bg-background shadow-xl">
+            <Search className="ml-3 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search people, projects, jobs..."
+              aria-label="Search DevHeaven"
+              className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
+              autoFocus
+            />
+            <button type="button" onClick={() => setOpen(false)} className="mr-1 rounded-md p-2 text-muted-foreground hover:bg-muted" aria-label="Close search">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   )
 }
