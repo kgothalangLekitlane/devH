@@ -77,7 +77,7 @@ const searchCandidates = async (req, res) => {
     const text = String(q || "").trim()
     if (text) {
       const pattern = { $regex: escapeRegex(text), $options: "i" }
-      query.$or = [{ firstName: pattern }, { lastName: pattern }, { username: pattern }, { skills: pattern }]
+      query.$or = [{ firstName: pattern }, { lastName: pattern }, { username: pattern }, { headline: pattern }, { skills: pattern }]
     }
     if (skill) query.skills = { $regex: escapeRegex(String(skill)), $options: "i" }
     if (location) query.location = { $regex: escapeRegex(String(location)), $options: "i" }
@@ -152,7 +152,7 @@ const getAvatar = async (req, res) => {
 
 const updateMyProfile = async (req, res) => {
   try {
-    const allowed = ["firstName", "lastName", "bio", "location", "experience", "timezone", "skills"]
+    const allowed = ["firstName", "lastName", "headline", "currentRole", "bio", "location", "experience", "timezone", "skills", "openToWork", "workPreference", "preferredLocation", "salaryExpectation"]
     const updates = {}
     for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
     if (updates.skills && !Array.isArray(updates.skills)) updates.skills = String(updates.skills).split(",").map(v => v.trim()).filter(Boolean).slice(0, 30)
@@ -161,6 +161,8 @@ const updateMyProfile = async (req, res) => {
       if (!Number.isFinite(experience) || experience < 0 || experience > 80) return res.status(400).json({ error: "Experience must be between 0 and 80" })
       updates.experience = experience
     }
+    if (updates.openToWork !== undefined) updates.openToWork = String(updates.openToWork) === "true" || updates.openToWork === true
+    if (updates.workPreference !== undefined && !["remote", "hybrid", "onsite", "flexible", ""].includes(String(updates.workPreference))) return res.status(400).json({ error: "Invalid work preference" })
     if (req.body.github !== undefined) {
       const github = normalizeGithubUrl(req.body.github)
       if (!github) return res.status(400).json({ error: "Enter a valid GitHub profile URL, for example https://github.com/username" })
