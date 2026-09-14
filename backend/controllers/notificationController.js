@@ -15,6 +15,16 @@ const getNotifications = async (req, res) => {
   }
 }
 
+const getUnreadCount = async (req, res) => {
+  try {
+    const unreadCount = await Notification.countDocuments({ recipient: req.user.id, read: false })
+    res.json({ count: unreadCount, unreadCount })
+  } catch (error) {
+    console.error("Get notification unread count error:", error)
+    res.status(500).json({ error: "Failed to fetch notification count" })
+  }
+}
+
 const markAllRead = async (req, res) => {
   try {
     await Notification.updateMany({ recipient: req.user.id, read: false }, { $set: { read: true } })
@@ -38,4 +48,4 @@ const markRead = async (req, res) => {
   }
 }
 
-module.exports = { getNotifications, markAllRead, markRead }
+module.exports = { getNotifications, getUnreadCount, markAllRead, markRead }
