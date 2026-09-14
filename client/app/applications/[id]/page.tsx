@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, BriefcaseBusiness, CheckCircle2, Clock3, FileText, Loader2, XCircle } from "lucide-react"
+import { ArrowLeft, BriefcaseBusiness, CheckCircle2, Clock3, FileText, Loader2, MessageCircle, XCircle } from "lucide-react"
 import { fetchApplication } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -57,15 +57,19 @@ export default function ApplicationDetails({ params }: { params: Promise<{ id: s
   const recruiter = job.recruiter || {}
   const current = application.status
   const latestEvent = events[events.length - 1]
+  const recruiterId = recruiter._id || recruiter.id
 
   return <main className="min-h-screen bg-muted/30 px-4 py-8">
     <div className="mx-auto max-w-3xl space-y-5">
       <Link href="/applications" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Applications</Link>
 
       <section className="rounded-xl border bg-background p-6 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-primary/10 p-3"><BriefcaseBusiness className="h-5 w-5 text-primary" /></div>
-          <div className="min-w-0"><h1 className="text-2xl font-bold tracking-tight">{job.title || "Application"}</h1><p className="text-muted-foreground">{recruiter.company || recruiter.name || "Company"}{job.location ? ` · ${job.location}` : ""}</p></div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-primary/10 p-3"><BriefcaseBusiness className="h-5 w-5 text-primary" /></div>
+            <div className="min-w-0"><h1 className="text-2xl font-bold tracking-tight">{job.title || "Application"}</h1><p className="text-muted-foreground">{recruiter.company || recruiter.name || "Company"}{job.location ? ` · ${job.location}` : ""}</p></div>
+          </div>
+          {recruiterId && <Link href={`/messages?user=${encodeURIComponent(String(recruiterId))}`} className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted"><MessageCircle className="h-4 w-4" />Message recruiter</Link>}
         </div>
         <div className="mt-6 rounded-lg border bg-muted/30 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-muted-foreground">Current status</p><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{labels[current] || current}</span></div>
