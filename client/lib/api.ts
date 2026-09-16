@@ -1,7 +1,12 @@
 const getApiUrl = () => {
   const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (!configuredUrl) throw new Error("NEXT_PUBLIC_API_URL is not configured. Set it to your deployed DevHeaven API URL.");
-  return configuredUrl.replace(/\/$/, "");
+  if (!configuredUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured. Set it to your deployed DevHeaven API URL.");
+  }
+
+  // Accept either the backend origin or an accidentally supplied `/api` base.
+  // Individual request paths already include `/api/...`.
+  return configuredUrl.replace(/\/api\/?$/, "").replace(/\/$/, "");
 };
 
 export const assetUrl = (value?: string | null) => {
@@ -19,27 +24,48 @@ async function request(path: string, options: RequestInit = {}) {
   const timeout = setTimeout(() => controller.abort(), 15_000);
   const callerSignal = options.signal;
   let callerAbortHandler: (() => void) | undefined;
+
   if (callerSignal) {
     if (callerSignal.aborted) controller.abort(callerSignal.reason);
-    else { callerAbortHandler = () => controller.abort(callerSignal.reason); callerSignal.addEventListener("abort", callerAbortHandler, { once: true }); }
+    else {
+      callerAbortHandler = () => controller.abort(callerSignal.reason);
+      callerSignal.addEventListener("abort", callerAbortHandler, { once: true });
+    }
   }
+
   try {
-    const res = await fetch(`${apiUrl}${path}`, { ...options, signal: controller.signal, headers: { Accept: "application/json", ...(options.headers || {}) } });
+    const res = await fetch(`${apiUrl}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: { Accept: "application/json", ...(options.headers || {}) },
+    });
+
     let body: any = null;
     try { body = await res.json(); } catch {}
+
     if (!res.ok) {
       const error = new Error(body?.error || body?.message || `Request failed (${res.status})`);
       (error as Error & { status?: number }).status = res.status;
       const hasAuthorization = typeof options.headers === "object" && options.headers !== null && "Authorization" in options.headers;
-      if (res.status === 401 && hasAuthorization && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("devheaven:auth-expired", { detail: { path, message: error.message } }));
+      if (res.status === 401 && hasAuthorization && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("devheaven:auth-expired", { detail: { path, message: error.message } }));
+      }
       throw error;
     }
+
     return body;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error("The request timed out. Please check your connection and try again.");
-    if (error instanceof TypeError) throw new Error("Unable to reach the DevHeaven API. Please check your connection and try again.");
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("The request timed out. Please check your connection and try again.");
+    }
+    if (error instanceof TypeError) {
+      throw new Error("Unable to reach the DevHeaven API. Please check your connection and try again.");
+    }
     throw error;
-  } finally { clearTimeout(timeout); if (callerSignal && callerAbortHandler) callerSignal.removeEventListener("abort", callerAbortHandler); }
+  } finally {
+    clearTimeout(timeout);
+    if (callerSignal && callerAbortHandler) callerSignal.removeEventListener("abort", callerAbortHandler);
+  }
 }
 
 const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
@@ -93,7 +119,6 @@ export async function updateApplicationStatus(id: string, status: "submitted" | 
 export async function fetchCandidateMatches(jobId: string, token: string) { return request(`/api/candidate-matches/${encodeURIComponent(jobId)}`, { headers: authHeaders(token) }); }
 export async function getMyGithub(token: string) { return request("/api/github/me", { headers: authHeaders(token) }); }
 export async function getGithubUser(username: string) { return request(`/api/github/user/${encodeURIComponent(username)}`); }
-
 export async function fetchProjects() { return request("/api/projects"); }
 export async function fetchProject(id: string) { return request(`/api/projects/${encodeURIComponent(id)}`); }
 export async function createProject(data: { title: string; description: string; techStack?: string[]; githubUrl?: string; liveUrl?: string; imageUrl?: string; category?: string; status?: string; featured?: boolean; startedAt?: string; completedAt?: string }, token: string) { return request("/api/projects", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
