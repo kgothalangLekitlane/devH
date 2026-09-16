@@ -4,8 +4,6 @@ const getApiUrl = () => {
     throw new Error("NEXT_PUBLIC_API_URL is not configured. Set it to your deployed DevHeaven API URL.");
   }
 
-  // Accept either the backend origin or an accidentally supplied `/api` base.
-  // Individual request paths already include `/api/...`.
   return configuredUrl.replace(/\/api\/?$/, "").replace(/\/$/, "");
 };
 
@@ -122,9 +120,11 @@ export async function getGithubUser(username: string) { return request(`/api/git
 export async function fetchProjects() { return request("/api/projects"); }
 export async function fetchProject(id: string) { return request(`/api/projects/${encodeURIComponent(id)}`); }
 export async function createProject(data: { title: string; description: string; techStack?: string[]; githubUrl?: string; liveUrl?: string; imageUrl?: string; category?: string; status?: string; featured?: boolean; startedAt?: string; completedAt?: string }, token: string) { return request("/api/projects", { method: "POST", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
-export async function updateProject(id: string, data: Record<string, unknown>, token: string) { return request(`/api/projects/${encodeURIComponent(id)}`, { method: "PUT", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
+export async function updateProject(id: string, data: Record<string, unknown>, token: string) { return request(`/api/projects/${encodeURIComponent(id)}`, { method: "PUT", headers: authHeaders(token), body: JSON.stringify(data) }); }
 export async function deleteProject(id: string, token: string) { return request(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders(token) }); }
 export async function fetchConnectionSummary(token: string) { return request("/api/connections/summary", { headers: authHeaders(token) }); }
 export async function fetchConnections(token: string) { return request("/api/connections", { headers: authHeaders(token) }); }
 export async function requestConnection(userId: string, token: string) { return request(`/api/connections/${encodeURIComponent(userId)}`, { method: "POST", headers: authHeaders(token) }); }
 export async function updateConnection(id: string, status: "accepted" | "rejected", token: string) { return request(`/api/connections/${encodeURIComponent(id)}`, { method: "PATCH", headers: { ...authHeaders(token), "Content-Type": "application/json" }, body: JSON.stringify({ status }) }); }
+export async function fetchNetworkSuggestions(params: { q?: string; skill?: string; location?: string; experience?: string } = {}, token: string) { const query = new URLSearchParams(); Object.entries(params).forEach(([key, value]) => { if (value) query.set(key, value); }); return request(`/api/network/suggestions${query.toString() ? `?${query}` : ""}`, { headers: authHeaders(token) }); }
+export async function fetchNetworkStats(token: string) { return request("/api/network/stats", { headers: authHeaders(token) }); }
