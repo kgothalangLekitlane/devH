@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { io, type Socket } from "socket.io-client"
+import { getSocket } from "@/lib/socket"
 import { useAuth } from "@/contexts/AuthContext"
 import { fetchMessages, fetchMessagesWithUser, fetchUsers, searchCandidates, sendMessage, assetUrl, fetchConnections, requestConnection, updateConnection, markConversationRead } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -11,8 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Code2, Send, Search, UserPlus, Check, X } from "lucide-react"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com"
 
 type UserSummary = { _id: string; firstName?: string; lastName?: string; username?: string; profileImage?: string }
 type ConnectionRecord = { _id?: string; requester?: any; recipient?: any; status?: string }
@@ -141,11 +139,17 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!token) return
-    const socket: Socket = io(API_URL, { auth: { token }, transports: ["websocket", "polling"], withCredentials: true })
-    socket.on("connect", () => { setSocketReady(true); if (selected?._id) socket.emit("joinConversation", { userId: selected._id }) })
-    socket.on("connect_error", err => { setSocketReady(false); console.error("DevHeaven messaging connection failed:", err.message) })
-    socket.on("disconnect", () => setSocketReady(false))
-    socket.on("receiveMessage", (incoming: any) => {
+    const socket = getSocket(token)
+    const onConnect = () => {
+      setSocketReady(true)
+      if (selected?._id) socket.emit("joinConversation", { userId: selected._id })
+    }
+    const onConnectError = (err: Error) => {
+      setSocketReady(false)
+      console.error("DevHeaven messaging connection failed:", err.message)
+    }
+    const onDisconnect = () => setSocketReady(false)
+    const onReceiveMessage = (incoming: any) => {
       if (!selected) return
       const relevant = (idOf(incoming.senderId) === String(selected._id) && idOf(incoming.receiverId) === String(me?.id)) || (idOf(incoming.senderId) === String(me?.id) && idOf(incoming.receiverId) === String(selected._id))
       if (!relevant) return
@@ -161,8 +165,21 @@ export default function MessagesPage() {
         return current
       })
       if (idOf(incoming.senderId) === String(selected._id)) void markConversationRead(selected._id, token)
-    })
-    return () => { socket.disconnect(); setSocketReady(false) }
+    }
+
+    socket.on("connect", onConnect)
+    socket.on("connect_error", onConnectError)
+    socket.on("disconnect", onDisconnect)
+    socket.on("receiveMessage", onReceiveMessage)
+    if (socket.connected) onConnect()
+
+    return () => {
+      socket.off("connect", onConnect)
+      socket.off("connect_error", onConnectError)
+      socket.off("disconnect", onDisconnect)
+      socket.off("receiveMessage", onReceiveMessage)
+      setSocketReady(false)
+    }
   }, [token, selected?._id, me?.id])
 
   const selectedConnection = useMemo(() => {
