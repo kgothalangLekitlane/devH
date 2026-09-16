@@ -23,6 +23,7 @@ export function getSocket(token: string): Socket {
   socket = io(getSocketUrl(), {
     transports: ["websocket", "polling"],
     auth: { token },
+    withCredentials: true,
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: Infinity,
