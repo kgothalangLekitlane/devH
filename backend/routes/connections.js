@@ -48,7 +48,25 @@ router.post("/:userId", authenticate, async (req, res) => {
       return res.status(409).json({ error: "A connection request already exists", connection: existing });
     }
 
-    const connection = await Connection.create({ requester: req.user.id, recipient: userId, status: "pending" });
+    let connection;
+    try {
+      connection = await Connection.create({ requester: req.user.id, recipient: userId, status: "pending" });
+    } catch (error) {
+      // Two concurrent requests can both pass the pre-check. The unique
+      // requester/recipient index makes one win; surface that race as a
+      // normal conflict instead of returning an opaque 500.
+      if (error?.code === 11000) {
+        const racedConnection = await Connection.findOne({
+          $or: [
+            { requester: req.user.id, recipient: userId },
+            { requester: userId, recipient: req.user.id },
+          ],
+        });
+        return res.status(409).json({ error: "A connection request already exists", connection: racedConnection });
+      }
+      throw error;
+    }
+
     await notify({ recipient: userId, sender: req.user.id, text: "sent you a connection request" });
     res.status(201).json({ connection });
   } catch (error) { console.error("Create connection error:", error); res.status(500).json({ error: "Failed to create connection request" }); }
