@@ -9,8 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Code2, Github, Mail } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com";
+import { loginUser } from "@/lib/api";
 
 const needsOnboarding = (user: any) => {
   if (!user) return true;
@@ -40,14 +39,8 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: form.identifier.trim(), password: form.password }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || data.message || "Invalid username/email or password.");
-      if (!data.token || !data.user) throw new Error("The server returned an invalid login response.");
+      const data = await loginUser({ identifier: form.identifier.trim(), password: form.password });
+      if (!data?.token || !data?.user) throw new Error("The server returned an invalid login response.");
       login(data.token, data.user);
       router.replace(needsOnboarding(data.user) ? "/onboarding" : "/dashboard");
     } catch (err) {
