@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Code2, Github, Mail } from "lucide-react";
 import Link from "next/link";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com";
+import { registerUser } from "@/lib/api";
 
 export default function SignUpPage() {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", username: "", password: "", confirmPassword: "", terms: false });
@@ -33,7 +32,7 @@ export default function SignUpPage() {
     if (loading) return;
     setError("");
 
-    if (!form.firstName || !form.lastName || !form.email || !form.username || !form.password || !form.confirmPassword) {
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.username.trim() || !form.password || !form.confirmPassword) {
       setError("All required fields must be completed.");
       return;
     }
@@ -65,13 +64,7 @@ export default function SignUpPage() {
       body.append("password", form.password);
       if (file) body.append("profile", file);
 
-      const response = await fetch(`${API_URL}/api/auth/register`, { method: "POST", body });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Registration failed. Please try again.");
-      }
-
+      await registerUser(body);
       router.replace("/login?registered=1");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create your account. Please try again.");
@@ -94,14 +87,14 @@ export default function SignUpPage() {
         <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label htmlFor="firstName">First Name</Label><Input id="firstName" placeholder="John" value={form.firstName} onChange={handleChange} required /></div>
-              <div className="space-y-2"><Label htmlFor="lastName">Last Name</Label><Input id="lastName" placeholder="Doe" value={form.lastName} onChange={handleChange} required /></div>
+              <div className="space-y-2"><Label htmlFor="firstName">First Name</Label><Input id="firstName" placeholder="John" autoComplete="given-name" value={form.firstName} onChange={handleChange} required /></div>
+              <div className="space-y-2"><Label htmlFor="lastName">Last Name</Label><Input id="lastName" placeholder="Doe" autoComplete="family-name" value={form.lastName} onChange={handleChange} required /></div>
             </div>
-            <div className="space-y-2"><Label htmlFor="profile">Profile Image (optional)</Label><Input id="profile" type="file" accept="image/*" onChange={handleChange} />{file && <span className="text-xs text-gray-500">Selected: {file.name}</span>}</div>
-            <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" placeholder="john@example.com" value={form.email} onChange={handleChange} required /></div>
-            <div className="space-y-2"><Label htmlFor="username">Username</Label><Input id="username" placeholder="johndoe" value={form.username} onChange={handleChange} required /></div>
-            <div className="space-y-2"><Label htmlFor="password">Password</Label><Input id="password" type="password" value={form.password} onChange={handleChange} required /></div>
-            <div className="space-y-2"><Label htmlFor="confirmPassword">Confirm Password</Label><Input id="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} required /></div>
+            <div className="space-y-2"><Label htmlFor="profile">Profile Image (optional)</Label><Input id="profile" name="profile" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleChange} />{file && <span className="text-xs text-gray-500">Selected: {file.name}</span>}</div>
+            <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" autoComplete="email" placeholder="john@example.com" value={form.email} onChange={handleChange} required /></div>
+            <div className="space-y-2"><Label htmlFor="username">Username</Label><Input id="username" autoComplete="username" placeholder="johndoe" value={form.username} onChange={handleChange} required /></div>
+            <div className="space-y-2"><Label htmlFor="password">Password</Label><Input id="password" type="password" autoComplete="new-password" value={form.password} onChange={handleChange} required /></div>
+            <div className="space-y-2"><Label htmlFor="confirmPassword">Confirm Password</Label><Input id="confirmPassword" type="password" autoComplete="new-password" value={form.confirmPassword} onChange={handleChange} required /></div>
             <div className="flex items-start space-x-2">
               <Checkbox id="terms" checked={form.terms} onCheckedChange={(checked) => setForm((current) => ({ ...current, terms: !!checked }))} />
               <Label htmlFor="terms" className="text-sm leading-5">I agree to the <Link href="/terms" className="text-purple-600 hover:underline" prefetch={false}>Terms of Service</Link> and <Link href="/privacy" className="text-purple-600 hover:underline" prefetch={false}>Privacy Policy</Link>.</Label>
