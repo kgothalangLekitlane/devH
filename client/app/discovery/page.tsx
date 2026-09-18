@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Compass, Search, UserPlus, UserCheck, Clock3, Check, X, MapPin, Users, Sparkles, SlidersHorizontal, Code2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import { assetUrl, fetchConnections, requestConnection, updateConnection } from "@/lib/api"
+import { assetUrl, fetchConnections, fetchNetworkStats, fetchNetworkSuggestions, requestConnection, updateConnection } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -26,21 +26,16 @@ export default function DiscoveryPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState("")
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com").replace(/\/$/, "")
 
   const load = async () => {
     if (!token) return
     setLoading(true); setError("")
     try {
-      const params = new URLSearchParams()
-      if (query.trim()) params.set("q", query.trim())
-      if (skill.trim()) params.set("skill", skill.trim())
-      if (location.trim()) params.set("location", location.trim())
-      if (experience) params.set("experience", experience)
+      const params = { q: query.trim(), skill: skill.trim(), location: location.trim(), experience }
       const [suggestions, connectionData, statsData] = await Promise.all([
-        fetch(`${apiBase}/api/network/suggestions?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }).then(async r => { const b = await r.json(); if (!r.ok) throw new Error(b?.error || "Unable to load developers"); return b }),
+        fetchNetworkSuggestions(params, token),
         fetchConnections(token),
-        fetch(`${apiBase}/api/network/stats`, { headers: { Authorization: `Bearer ${token}` } }).then(async r => { const b = await r.json(); if (!r.ok) throw new Error(b?.error || "Unable to load network stats"); return b })
+        fetchNetworkStats(token)
       ])
       setPeople(suggestions.suggestions || [])
       setConnections(connectionData.connections || [])
