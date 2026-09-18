@@ -12,7 +12,7 @@ export const assetUrl = (value?: string | null) => {
   if (/^(https?:)?\/\//i.test(value)) return value;
   try {
     const apiUrl = getApiUrl();
-    return `${apiUrl}${value.startsWith("/") ? value : `/${value}` }`.trim();
+    return `${apiUrl}${value.startsWith("/") ? value : `/${value}`}`;
   } catch {
     return "";
   }
