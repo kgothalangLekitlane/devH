@@ -10,8 +10,12 @@ const getApiUrl = () => {
 export const assetUrl = (value?: string | null) => {
   if (!value) return "";
   if (/^(https?:)?\/\//i.test(value)) return value;
-  const apiUrl = getApiUrl();
-  return `${apiUrl}${value.startsWith("/") ? value : `/${value}`}`;
+  try {
+    const apiUrl = getApiUrl();
+    return `${apiUrl}${value.startsWith("/") ? value : `/${value}` }`.trim();
+  } catch {
+    return "";
+  }
 };
 
 export const isApiUnauthorized = (error: unknown) => Number((error as Error & { status?: number })?.status) === 401;
