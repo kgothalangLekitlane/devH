@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { fetchRecruiterDashboard, updateApplicationStatus } from "@/lib/api"
+import { fetchCandidateMatches, fetchRecruiterDashboard, updateApplicationStatus } from "@/lib/api"
 
 type Applicant = { _id: string; status: string; createdAt: string; updatedAt: string; applicant?: { _id: string; firstName?: string; lastName?: string; username?: string; profileImage?: string; skills?: string[]; location?: string; experience?: number; bio?: string }; job?: { _id: string; title?: string; company?: string; location?: string; type?: string; remote?: boolean } }
 type Job = { _id: string; title: string; status?: string; applicants?: string[]; location?: string; type?: string; remote?: boolean; createdAt?: string }
@@ -19,7 +19,6 @@ type StatIcon = ComponentType<LucideProps>
 type DashboardStat = { label: string; value: number; Icon: StatIcon; href?: string }
 const statuses = ["submitted", "reviewing", "shortlisted", "accepted", "rejected"] as const
 const labels: Record<string, string> = { submitted: "Submitted", reviewing: "Reviewing", shortlisted: "Shortlisted", accepted: "Accepted", rejected: "Rejected" }
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com").replace(/\/$/, "")
 
 export default function RecruiterDashboardPage() {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("authToken") || "" : ""
@@ -29,7 +28,7 @@ export default function RecruiterDashboardPage() {
   const load = useCallback(async () => { if (!token) { setLoading(false); setError("Sign in to access recruiter tools."); return } setLoading(true); setError(""); try { const data = await fetchRecruiterDashboard(token); setJobs(data.jobs || []); setApplications(data.applications || []); setStats(data.stats || {}) } catch (e) { setError(e instanceof Error ? e.message : "Could not load recruiter dashboard") } finally { setLoading(false) } }, [token])
   useEffect(() => { void load() }, [load])
   const filtered = useMemo(() => applications.filter(a => { const name = `${a.applicant?.firstName || ""} ${a.applicant?.lastName || ""} ${a.applicant?.username || ""} ${a.applicant?.skills?.join(" ") || ""} ${a.job?.title || ""}`.toLowerCase(); return (!query || name.includes(query.toLowerCase())) && (status === "all" || a.status === status) }), [applications, query, status])
-  const showMatches = async (job: Job) => { if (!token) return; setMatchJob(job); setLoadingMatches(true); setError(""); try { const res = await fetch(`${API_URL}/api/candidate-matches/${encodeURIComponent(job._id)}`, { headers: { Authorization: `Bearer ${token}` } }); const body = await res.json(); if (!res.ok) throw new Error(body?.message || "Could not calculate matches"); setMatches(body.matches || []) } catch (e) { setError(e instanceof Error ? e.message : "Could not calculate candidate matches"); setMatches([]) } finally { setLoadingMatches(false) } }
+  const showMatches = async (job: Job) => { if (!token) return; setMatchJob(job); setLoadingMatches(true); setError(""); try { const body = await fetchCandidateMatches(job._id, token); setMatches(body.matches || []) } catch (e) { setError(e instanceof Error ? e.message : "Could not calculate candidate matches"); setMatches([]) } finally { setLoadingMatches(false) } }
   const changeStatus = async (next: typeof statuses[number]) => { if (!selected || !token) return; setBusy(true); setError(""); try { await updateApplicationStatus(selected._id, next, note, token); setSelected(null); setNote(""); await load() } catch (e) { setError(e instanceof Error ? e.message : "Could not update application") } finally { setBusy(false) } }
   const dashboardStats: DashboardStat[] = [{ label: "Jobs", value: jobs.length, Icon: BriefcaseBusiness, href: "/recruiter-dashboard/jobs" }, { label: "Applicants", value: stats.total || 0, Icon: Users }, { label: "Reviewing", value: stats.reviewing || 0, Icon: Clock3 }, { label: "Shortlisted", value: stats.shortlisted || 0, Icon: CheckCircle2 }, { label: "Accepted", value: stats.accepted || 0, Icon: CheckCircle2 }]
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500"><RefreshCw className="mr-2 h-4 w-4 animate-spin"/>Loading recruiter dashboard...</div>
