@@ -27,8 +27,8 @@ export default function ProfilePage(){
  const completeness=useMemo(()=>{if(!u)return 0;const checks=[!!u.profileImage,!!u.headline,!!u.currentRole,!!u.bio,!!u.location,(u.skills||[]).length>0,u.experience!=null,!!u.socialLinks?.github,!!u.socialLinks?.linkedin,!!u.socialLinks?.website];return Math.round(checks.filter(Boolean).length/checks.length*100)},[u])
  if(isLoading)return <div className="min-h-screen grid place-items-center">Loading...</div>
  if(!u||!token)return <div className="min-h-screen grid place-items-center"><Link href="/login">Sign in</Link></div>
- const initials=`${u.firstName?.[0]||""}${u.lastName?.[0]||""}`.toUpperCase()
- const profileImageUrl=(()=>{try{return preview||assetUrl(u.profileImage)}catch{return preview||""}})()
+ const initials=`${u.firstName?.[0]||""}${u.lastName?.[0]||""}`.toUpperCase() || "U"
+ const profileImageUrl=preview || (u.profileImage ? assetUrl(u.profileImage) : "")
  const links=[{label:"GitHub",icon:Github,url:safeUrl(u.socialLinks?.github)},{label:"LinkedIn",icon:Linkedin,url:safeUrl(u.socialLinks?.linkedin)},{label:"Twitter",icon:Twitter,url:safeUrl(u.socialLinks?.twitter)},{label:"Portfolio",icon:Globe,url:safeUrl(u.socialLinks?.website)}].filter(x=>x.url)
  const set=(key:string,value:any)=>setForm(current=>({...current,[key]:value}))
  const save=async()=>{setSaving(true);setError("");try{const data=new FormData();Object.entries(form).forEach(([k,v])=>data.append(k,String(v)));data.append("timezone",Intl.DateTimeFormat().resolvedOptions().timeZone);if(image)data.append("profile",image);const result=await updateMyProfile(data,token);if(!result?.user)throw new Error("Profile update returned an invalid response.");if(!result?.token)throw new Error("Profile updated, but the server did not return a new session token.");login(result.token,result.user);setImage(null);setPreview("");setEditing(false)}catch(err:any){setError(err?.message||"Unable to update profile")}finally{setSaving(false)}}
