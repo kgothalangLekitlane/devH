@@ -1,7 +1,5 @@
-"use client"
-
 import dynamic from "next/dynamic"
-import { useParams } from "next/navigation"
+import type { Metadata } from "next"
 
 const PublicProfilePage = dynamic(() => import("./PublicProfilePage"), {
   ssr: false,
@@ -12,11 +10,19 @@ const PublicProfilePage = dynamic(() => import("./PublicProfilePage"), {
   ),
 })
 
-export default function ProfilePage() {
-  const params = useParams<{ id?: string }>()
-  const id = typeof params?.id === "string" ? params.id.trim() : ""
+export const metadata: Metadata = {
+  title: "DevHeaven Profile",
+}
 
-  if (!id) {
+export default async function ProfilePage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const profileId = String(id || "").trim()
+
+  if (!profileId) {
     return (
       <div className="min-h-screen bg-background text-foreground grid place-items-center">
         Profile not found.
@@ -24,5 +30,5 @@ export default function ProfilePage() {
     )
   }
 
-  return <PublicProfilePage id={id} />
+  return <PublicProfilePage id={profileId} />
 }
