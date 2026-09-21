@@ -113,7 +113,9 @@ export default function GitHubIdentity() {
 
   if (!data?.profile) return null
 
-  const { profile, repositories, languages } = data
+  const profile = data.profile
+  const repositories = Array.isArray(data.repositories) ? data.repositories : []
+  const languages = data.languages && typeof data.languages === "object" ? data.languages : {}
 
   return (
     <Card>
