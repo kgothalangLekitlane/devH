@@ -1,5 +1,6 @@
 export function formatLocalDateTime(value: string | Date) {
   const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return "Date unavailable"
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -8,6 +9,7 @@ export function formatLocalDateTime(value: string | Date) {
 
 export function formatRelativeTime(value: string | Date) {
   const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return "Date unavailable"
   const diff = Date.now() - date.getTime()
   const seconds = Math.round(diff / 1000)
   if (seconds < 30) return "just now"
