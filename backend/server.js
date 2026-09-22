@@ -81,6 +81,11 @@ app.get("/health/db", (req, res) => {
 
 app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }));
 app.use("/api/auth/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 20 }));
+// Password reset requests can trigger an outbound email. Keep these limits
+// deliberately tighter than sign-in attempts to prevent a single client from
+// using the service to flood an account's inbox or exhaust the email quota.
+app.use("/api/auth/forgot-password", rateLimit({ windowMs: 60 * 60 * 1000, max: 5 }));
+app.use("/api/auth/reset-password", rateLimit({ windowMs: 60 * 60 * 1000, max: 10 }));
 app.use("/api/messages", rateLimit({ windowMs: 60 * 1000, max: 120 }));
 app.use("/api/posts", rateLimit({ windowMs: 60 * 1000, max: 60 }));
 app.use("/api/network", rateLimit({ windowMs: 60 * 1000, max: 60 }));

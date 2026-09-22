@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { GridFSBucket } = require("mongodb");
+const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require("../utils/passwordPolicy");
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not configured");
@@ -59,7 +60,7 @@ const registerUser = async (req, res) => {
     const normalizedEmail = String(email || "").trim().toLowerCase();
     const normalizedUsername = String(username || "").trim();
     if (!firstName || !lastName || !normalizedEmail || !normalizedUsername || !password) return res.status(400).json({ message: "Missing required fields." });
-    if (String(password).length < 8) return res.status(400).json({ message: "Password must be at least 8 characters." });
+    if (!isStrongPassword(password)) return res.status(400).json({ message: PASSWORD_POLICY_MESSAGE });
     const existing = await User.findOne({ $or: [{ email: normalizedEmail }, { username: normalizedUsername }] });
     if (existing) return res.status(409).json({ message: "User already exists." });
     const user = await User.create({ firstName, lastName, email: normalizedEmail, username: normalizedUsername, password: await bcrypt.hash(password, 12), timezone: timezone || undefined });
@@ -109,7 +110,7 @@ const resetPassword = async (req, res) => {
   try {
     const token = String(req.body.token || "");
     const password = String(req.body.password || "");
-    if (!token || password.length < 8) return res.status(400).json({ error: "A valid reset token and password of at least 8 characters are required." });
+    if (!token || !isStrongPassword(password)) return res.status(400).json({ error: `A valid reset token and ${PASSWORD_POLICY_MESSAGE.toLowerCase()}` });
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
     const user = await User.findOne({ passwordResetToken: hashedToken, passwordResetExpires: { $gt: new Date() } }).select("+passwordResetToken +passwordResetExpires");
     if (!user) return res.status(400).json({ error: "This password reset link is invalid or has expired." });
