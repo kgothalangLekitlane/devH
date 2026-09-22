@@ -1,16 +1,7 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { useParams } from "next/navigation"
-
-const PublicProfilePage = dynamic(() => import("./PublicProfilePage"), {
-  ssr: false,
-  loading: () => (
-    <div className="min-h-screen bg-background text-foreground grid place-items-center">
-      Loading profile...
-    </div>
-  ),
-})
+import PublicProfilePage from "./PublicProfilePage"
 
 export default function ProfilePage() {
   const params = useParams<{ id?: string }>()
