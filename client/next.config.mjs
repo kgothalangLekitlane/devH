@@ -5,6 +5,14 @@ const nextConfig = {
   },
   serverExternalPackages: [],
   trailingSlash: false,
+  async rewrites() {
+    return [
+      {
+        source: '/profile/:id',
+        destination: '/public-profile/:id',
+      },
+    ];
+  },
   async headers() {
     return [
       {
