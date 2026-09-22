@@ -1,294 +1,76 @@
- 📘 DevHeaven API Documentation
+# DevHeaven API
 
-Welcome to the DevHeaven API! This backend supports authentication, posts, messaging, developer resources, and recruiter listings.
+The API is mounted below the `/api` prefix. Configure the client with the
+backend origin (for example, `https://devheaven-2.onrender.com`), then call
+`https://devheaven-2.onrender.com/api/...`.
 
----
+## Authentication
 
-## 🌍 Base URL
+### Register
 
-https://devheaven-2.onrender.com
+`POST /api/auth/register`
 
+Accepts JSON or `multipart/form-data` when uploading an optional `profile`
+image. The required fields are `firstName`, `lastName`, `email`, `username`,
+and `password`. Passwords must be at least eight characters and include an
+uppercase letter, lowercase letter, and number.
 
-
----
-
-## 🛡️ Authentication
-
-### ✅ Register
-
-**POST** `/auth/register`
-
-Registers a new user.
-
-#### Request Body:
 ```json
 {
+  "firstName": "Dev",
+  "lastName": "User",
+  "email": "dev@example.com",
   "username": "devuser",
-  "email": "dev@example.com",
-  "password": "securepassword"
+  "password": "SecurePass1"
 }
-Success Response:
-json
-Copy
-Edit
+```
+
+Returns `201 Created` with a public user object. Sign in separately to receive
+a JWT.
+
+### Login
+
+`POST /api/auth/login`
+
+```json
 {
-  "message": "User registered successfully",
-  "user": {
-    "id": "abc123",
-    "username": "devuser",
-    "email": "dev@example.com"
-  }
+  "identifier": "devuser",
+  "password": "SecurePass1"
 }
-🔐 Login
-POST /auth/login
+```
 
-Authenticates an existing user.
+`identifier` may be a username or email address. A successful response returns
+the JWT in `token` and the public user object in `user`. Supply that token on
+protected endpoints using `Authorization: Bearer <token>`.
 
-Request Body:
-json
-Copy
-Edit
-{
-  "email": "dev@example.com",
-  "password": "securepassword"
-}
-Success Response:
-json
-Copy
-Edit
-{
-  "token": "JWT_TOKEN_HERE",
-  "user": {
-    "id": "abc123",
-    "username": "devuser",
-    "email": "dev@example.com"
-  }
-}
-Error Response:
-json
-Copy
-Edit
-{
-  "error": "Invalid email or password"
-}
-👤 Users
-📄 Get User Profile
-GET /users/:id
+### Current user
 
-Fetch a user's public profile.
+`GET /api/auth/me` (authentication required)
 
-Response:
-json
-Copy
-Edit
-{
-  "id": "abc123",
-  "username": "devuser",
-  "email": "dev@example.com",
-  "bio": "Full-stack dev"
-}
-📝 Posts
-📤 Create Post
-POST /posts
+Returns the authenticated user's public profile.
 
-Authorization: Bearer token required
+### Password reset
 
-Request Body:
-json
-Copy
-Edit
-{
-  "title": "How to learn React",
-  "content": "Start with the docs, build a to-do app..."
-}
-Success Response:
-json
-Copy
-Edit
-{
-  "message": "Post created",
-  "post": {
-    "id": "post123",
-    "title": "How to learn React",
-    "content": "Start with the docs...",
-    "author": "abc123"
-  }
-}
-📚 Get All Posts
-GET /posts
+- `POST /api/auth/forgot-password` with `{ "email": "dev@example.com" }`
+- `POST /api/auth/reset-password` with `{ "token": "...", "password": "SecurePass1" }`
 
-Returns a list of all posts.
+The reset email is sent only when the account and email provider configuration
+are available. Reset links expire after 30 minutes.
 
-Response:
-json
-Copy
-Edit
-[
-  {
-    "id": "post123",
-    "title": "How to learn React",
-    "content": "Start with the docs...",
-    "author": {
-      "id": "abc123",
-      "username": "devuser"
-    }
-  }
-]
-💬 Messaging
-📩 Send Message
-POST /messages
+## Core resources
 
-Authorization: Bearer token required
+All endpoints below use the `/api` prefix:
 
-Request Body:
-json
-Copy
-Edit
-{
-  "receiverId": "user456",
-  "text": "Hey! Are you available for collab?"
-}
-Response:
-json
-Copy
-Edit
-{
-  "message": "Message sent",
-  "chat": {
-    "id": "msg789",
-    "senderId": "abc123",
-    "receiverId": "user456",
-    "text": "Hey! Are you available for collab?"
-  }
-}
-📥 Get Messages with User
-GET /messages/:userId
+| Resource | Examples |
+| --- | --- |
+| Users | `GET /api/users` (authenticated), `GET /api/users/:id`, `PUT /api/users/me` (authenticated) |
+| Posts | `GET /api/posts`, `POST /api/posts` (authenticated), `POST /api/posts/:id/comments` (authenticated) |
+| Messages | `GET /api/messages`, `POST /api/messages` (authenticated) |
+| Recruiters and jobs | `GET /api/recruiters`, `GET /api/jobs`, recruiter management endpoints (authenticated) |
+| Projects and resources | `GET /api/projects`, `POST /api/projects` (authenticated), `GET /api/resources` |
+| Network | `GET /api/connections`, `GET /api/network/suggestions` (authenticated) |
+| Notifications | `GET /api/notifications` (authenticated) |
 
-Returns conversation between the logged-in user and another user.
-
-Response:
-json
-Copy
-Edit
-[
-  {
-    "senderId": "abc123",
-    "receiverId": "user456",
-    "text": "Hey! Are you available for collab?",
-    "timestamp": "2025-07-22T12:00:00Z"
-  },
-  {
-    "senderId": "user456",
-    "receiverId": "abc123",
-    "text": "Sure! Let’s connect.",
-    "timestamp": "2025-07-22T12:05:00Z"
-  }
-]
-📚 Resources
-➕ Add Resource
-POST /resources
-
-Authorization: Bearer token required
-
-Request Body:
-json
-Copy
-Edit
-{
-  "title": "FreeCodeCamp",
-  "description": "Free full-stack coding curriculum",
-  "link": "https://freecodecamp.org"
-}
-Response:
-json
-Copy
-Edit
-{
-  "message": "Resource added",
-  "resource": {
-    "id": "res001",
-    "title": "FreeCodeCamp",
-    "description": "Free full-stack coding curriculum",
-    "link": "https://freecodecamp.org"
-  }
-}
-📖 Get All Resources
-GET /resources
-
-Response:
-json
-Copy
-Edit
-[
-  {
-    "id": "res001",
-    "title": "FreeCodeCamp",
-    "description": "Free full-stack coding curriculum",
-    "link": "https://freecodecamp.org"
-  }
-]
-🧑‍💼 Recruiters
-➕ Add Recruiter
-POST /recruiters
-
-Authorization: Bearer token required
-
-Request Body:
-json
-Copy
-Edit
-{
-  "name": "Jane Doe",
-  "company": "TechHire Inc.",
-  "email": "jane@techhire.com"
-}
-Response:
-json
-Copy
-Edit
-{
-  "message": "Recruiter added",
-  "recruiter": {
-    "id": "rec001",
-    "name": "Jane Doe",
-    "company": "TechHire Inc.",
-    "email": "jane@techhire.com"
-  }
-}
-👥 Get All Recruiters
-GET /recruiters
-
-Response:
-json
-Copy
-Edit
-[
-  {
-    "id": "rec001",
-    "name": "Jane Doe",
-    "company": "TechHire Inc.",
-    "email": "jane@techhire.com"
-  }
-]
-❌ Error Handling
-All errors return with this format:
-
-json
-Copy
-Edit
-{
-  "error": "Description of what went wrong"
-}
-Common errors:
-
-401 Unauthorized
-
-404 Not Found
-
-500 Internal Server Error
-
-✅ Authorization
-Some endpoints require an Authorization header:
-
-
-Authorization: Bearer YOUR_JWT_TOKEN
+Refer to the route handlers in `backend/routes/` for the current endpoint
+parameters and response shapes. The service also provides `GET /health` and
+`GET /health/db` for deployment health checks.

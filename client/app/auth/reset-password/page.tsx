@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com";
+const isStrongPassword = (value: string) => value.length >= 8 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value);
+const passwordHint = "Use at least 8 characters with uppercase, lowercase, and a number.";
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
@@ -29,7 +31,7 @@ export default function ResetPasswordPage() {
     setError("");
 
     if (!token) return setError("This reset link is missing or invalid.");
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
+    if (!isStrongPassword(password)) return setError(passwordHint);
     if (password !== confirm) return setError("Passwords do not match.");
 
     setLoading(true);
@@ -63,7 +65,7 @@ export default function ResetPasswordPage() {
             <span className="text-2xl font-bold text-gray-900">DevHeaven</span>
           </div>
           <CardTitle>Reset your password</CardTitle>
-          <CardDescription>Choose a new password for your account.</CardDescription>
+          <CardDescription>Choose a new password for your account. {passwordHint}</CardDescription>
         </CardHeader>
         <CardContent>
           {success ? (
