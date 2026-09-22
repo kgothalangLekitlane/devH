@@ -1,19 +1,17 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import PublicProfilePage from "./PublicProfilePage"
 
 export default function ProfilePage() {
   const params = useParams<{ id?: string }>()
   const id = typeof params?.id === "string" ? params.id.trim() : ""
 
-  if (!id) {
-    return (
-      <div className="min-h-screen bg-background text-foreground grid place-items-center">
-        Profile not found.
+  return (
+    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "system-ui, sans-serif" }}>
+      <div>
+        <h1>Profile route diagnostic</h1>
+        <p>{id ? `Profile ID: ${id}` : "Profile ID missing"}</p>
       </div>
-    )
-  }
-
-  return <PublicProfilePage id={id} />
+    </main>
+  )
 }
