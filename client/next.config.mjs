@@ -9,7 +9,7 @@ const nextConfig = {
     return [
       {
         source: '/profile/:id',
-        destination: '/public-profile/:id',
+        destination: '/public-profile?profileId=:id',
       },
     ];
   },
