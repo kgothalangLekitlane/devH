@@ -1,12 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/upload");
-const { getUsers, getUserById, getAvatar, searchCandidates, updateMyProfile, recordProfileView } = require("../controllers/userController");
+const { getUsers, getUserById, getAvatar, searchCandidates, updateMyProfile, recordProfileView, getMyNotificationPreferences, updateMyNotificationPreferences } = require("../controllers/userController");
 const authenticate = require("../middleware/authMiddleware");
 
 router.get("/", authenticate, getUsers);
 router.get("/search", authenticate, searchCandidates);
 router.get("/:id/avatar", getAvatar);
+router.get("/me/notifications", authenticate, getMyNotificationPreferences);
+router.patch("/me/notifications", authenticate, updateMyNotificationPreferences);
 router.post("/:id/view", authenticate, recordProfileView);
 router.get("/:id", getUserById);
 router.put("/me", authenticate, (req, res, next) => {
