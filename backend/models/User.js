@@ -20,6 +20,9 @@ const userSchema = new mongoose.Schema({
   workPreference: { type: String, enum: ["remote", "hybrid", "onsite", "flexible", ""], default: "" },
   preferredLocation: { type: String, trim: true, maxlength: 160, default: "" },
   salaryExpectation: { type: String, trim: true, maxlength: 80, default: "" },
+  emailNotifications: {
+    messages: { type: Boolean, default: true },
+  },
   socialLinks: {
     github: { type: String, trim: true, maxlength: 500 },
     linkedin: { type: String, trim: true, maxlength: 500 },
