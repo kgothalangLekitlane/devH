@@ -143,7 +143,8 @@ export default function MessagesPage() {
     const socket = getSocket(token)
     const onConnect = () => {
       setSocketReady(true)
-      const selectedId = idOf(selected)\n      if (selectedId) socket.emit("joinConversation", { userId: selectedId })
+      const selectedId = idOf(selected)
+      if (selectedId) socket.emit("joinConversation", { userId: selectedId })
     }
     const onConnectError = (err: Error) => {
       setSocketReady(false)
@@ -152,7 +153,9 @@ export default function MessagesPage() {
     const onDisconnect = () => setSocketReady(false)
     const onReceiveMessage = (incoming: any) => {
       if (!selected) return
-      const selectedId = idOf(selected)\n      const myId = String(me?.id || "")\n      const relevant = (idOf(incoming.senderId) === selectedId && idOf(incoming.receiverId) === myId) || (idOf(incoming.senderId) === myId && idOf(incoming.receiverId) === selectedId)
+      const selectedId = idOf(selected)
+      const myId = String(me?.id || "")
+      const relevant = (idOf(incoming.senderId) === selectedId && idOf(incoming.receiverId) === myId) || (idOf(incoming.senderId) === myId && idOf(incoming.receiverId) === selectedId)
       if (!relevant) return
       setMessages(prev => {
         const incomingId = incoming._id || incoming.messageId
