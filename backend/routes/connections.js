@@ -89,8 +89,22 @@ router.patch("/:id", authenticate, async (req, res) => {
 
     connection.status = status;
     await connection.save();
-    if (status === "accepted") await notify({ recipient: connection.requester, sender: req.user.id, text: "accepted your connection request" });
-    res.json({ connection });
+
+    const updatedConnection = await Connection.findById(connection._id)
+      .populate("requester", "firstName lastName username profileImage")
+      .populate("recipient", "firstName lastName username profileImage");
+
+    // Notifications are deliberately non-blocking. A notification failure
+    // must never turn a successful accept/reject into a 500 response.
+    if (status === "accepted") {
+      void notify({
+        recipient: connection.requester,
+        sender: req.user.id,
+        text: "accepted your connection request",
+      });
+    }
+
+    res.json({ connection: updatedConnection });
   } catch (error) { console.error("Update connection error:", error); res.status(500).json({ error: "Failed to update connection" }); }
 });
 
