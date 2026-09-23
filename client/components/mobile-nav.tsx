@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BriefcaseBusiness, Compass, FolderKanban, Home, MessageCircle } from "lucide-react"
+import { BriefcaseBusiness, Compass, FolderKanban, Home, MessageCircle, Settings } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -13,6 +13,7 @@ const items = [
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/jobs", label: "Jobs", icon: BriefcaseBusiness },
   { href: "/messages", label: "Messages", icon: MessageCircle },
+  { href: "/settings", label: "Settings", icon: Settings },
 ]
 
 export function MobileNav() {
@@ -49,7 +50,7 @@ export function MobileNav() {
 
   return (
     <nav aria-label="Mobile navigation" className="fixed inset-x-3 bottom-3 z-[60] rounded-2xl border border-border bg-background/90 p-1.5 shadow-2xl backdrop-blur-xl md:hidden">
-      <div className="grid grid-cols-5 gap-1">
+      <div className="grid grid-cols-6 gap-1">
         {items.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`))
           const showBadge = href === "/messages" && unreadCount > 0
