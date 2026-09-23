@@ -164,6 +164,30 @@ const getAvatar = async (req, res) => {
   }
 }
 
+const getMyNotificationPreferences = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id, "emailNotifications")
+    if (!user) return res.status(404).json({ error: "User not found" })
+    res.json({ emailNotifications: { messages: user.emailNotifications?.messages !== false } })
+  } catch (error) {
+    console.error("Get notification preferences error:", error)
+    res.status(500).json({ error: "Failed to fetch notification preferences" })
+  }
+}
+
+const updateMyNotificationPreferences = async (req, res) => {
+  try {
+    const messages = req.body?.emailNotifications?.messages
+    if (typeof messages !== "boolean") return res.status(400).json({ error: "emailNotifications.messages must be a boolean" })
+    const user = await User.findByIdAndUpdate(req.user.id, { $set: { "emailNotifications.messages": messages } }, { new: true, runValidators: true }).select("emailNotifications")
+    if (!user) return res.status(404).json({ error: "User not found" })
+    res.json({ message: "Notification preferences updated", emailNotifications: { messages: user.emailNotifications?.messages !== false } })
+  } catch (error) {
+    console.error("Update notification preferences error:", error)
+    res.status(400).json({ error: error.message || "Failed to update notification preferences" })
+  }
+}
+
 const updateMyProfile = async (req, res) => {
   try {
     const allowed = ["firstName", "lastName", "headline", "currentRole", "bio", "location", "experience", "timezone", "skills", "openToWork", "workPreference", "preferredLocation", "salaryExpectation"]
@@ -221,4 +245,4 @@ const updateMyProfile = async (req, res) => {
   }
 }
 
-module.exports = { getUsers, getUserById, getAvatar, searchCandidates, updateMyProfile, recordProfileView }
+module.exports = { getUsers, getUserById, getAvatar, searchCandidates, updateMyProfile, recordProfileView, getMyNotificationPreferences, updateMyNotificationPreferences }
