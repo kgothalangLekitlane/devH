@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Bell, Check, Code2, LogOut, Moon, Save, Shield, Sun, UserRound } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import { updateMyProfile } from "@/lib/api"
+import { fetchNotificationPreferences, updateMyProfile, updateNotificationPreferences } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,6 +19,8 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState({ firstName: "", lastName: "", headline: "", location: "", bio: "", timezone: "" })
   const [preferences, setPreferences] = useState({ profileVisible: true, jobAlerts: true, messageAlerts: true })
+  const [messageEmailNotifications, setMessageEmailNotifications] = useState(true)
+  const [notificationSaving, setNotificationSaving] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -26,11 +28,30 @@ export default function SettingsPage() {
   }, [user])
 
   useEffect(() => {
+    if (!token) return
+    fetchNotificationPreferences(token).then(data => setMessageEmailNotifications(data?.emailNotifications?.messages !== false)).catch(() => {})
+  }, [token])
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem("devheaven-settings")
       if (stored) setPreferences(current => ({ ...current, ...JSON.parse(stored) }))
     } catch {}
   }, [])
+
+  const updateMessageEmailNotifications = async () => {
+    if (!token || notificationSaving) return
+    const next = !messageEmailNotifications
+    setMessageEmailNotifications(next)
+    setNotificationSaving(true)
+    try {
+      await updateNotificationPreferences(next, token)
+      toast({ title: next ? "Email notifications enabled" : "Email notifications disabled", description: next ? "You will receive an email when someone sends you a new message." : "New message emails are now turned off." })
+    } catch (error) {
+      setMessageEmailNotifications(!next)
+      toast({ title: "Unable to update notification preference", description: error instanceof Error ? error.message : "Please try again." })
+    } finally { setNotificationSaving(false) }
+  }
 
   const updatePreference = (key: keyof typeof preferences) => {
     setPreferences(current => {
