@@ -136,14 +136,24 @@ const conversationRoom = (a, b) => {
 };
 
 io.on("connection", (socket) => {
-  socket.join(`user:${socket.user.id}`);
+  const connectedUserId = String(socket.user.id);
+  onlineUsers.set(connectedUserId, (onlineUsers.get(connectedUserId) || 0) + 1);
+  socket.join(`user:${connectedUserId}`);
+
   socket.on("joinConversation", ({ userId } = {}) => {
-    if (!mongoose.Types.ObjectId.isValid(userId) || String(userId) === String(socket.user.id)) return;
-    socket.join(conversationRoom(socket.user.id, userId));
+    if (!mongoose.Types.ObjectId.isValid(userId) || String(userId) === connectedUserId) return;
+    socket.join(conversationRoom(connectedUserId, userId));
   });
-  socket.on("disconnect", () => {\n    const count = onlineUsers.get(connectedUserId) || 0;\n    if (count <= 1) onlineUsers.delete(connectedUserId);\n    else onlineUsers.set(connectedUserId, count - 1);\n  });\n  socket.on("leaveConversation", ({ userId } = {}) => {
+
+  socket.on("disconnect", () => {
+    const count = onlineUsers.get(connectedUserId) || 0;
+    if (count <= 1) onlineUsers.delete(connectedUserId);
+    else onlineUsers.set(connectedUserId, count - 1);
+  });
+
+  socket.on("leaveConversation", ({ userId } = {}) => {
     if (typeof userId !== "string" || !mongoose.Types.ObjectId.isValid(userId)) return;
-    socket.leave(conversationRoom(socket.user.id, userId));
+    socket.leave(conversationRoom(connectedUserId, userId));
   });
 });
 
