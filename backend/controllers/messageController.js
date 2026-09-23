@@ -2,6 +2,7 @@ const mongoose = require("mongoose")
 const Message = require("../models/Message")
 const User = require("../models/User")
 const Notification = require("../models/Notification")
+const { sendNewMessageEmail } = require("../services/emailService")
 
 const populateMessageQuery = (query) => query
   .populate("senderId", "firstName lastName username profileImage")
@@ -99,7 +100,7 @@ const postMessage = async (req, res) => {
     if (String(receiverId) === String(senderId)) return res.status(400).json({ error: "You cannot message yourself" })
     const trimmedText = text.trim()
     if (!trimmedText || trimmedText.length > 5000) return res.status(400).json({ error: "Message text must be between 1 and 5000 characters" })
-    const receiver = await User.findById(receiverId).select("_id")
+    const receiver = await User.findById(receiverId).select("_id firstName lastName username email emailNotifications")
     if (!receiver) return res.status(404).json({ error: "Receiver not found" })
 
     const message = await Message.create({ senderId, receiverId, text: trimmedText, deliveredAt: new Date() })
@@ -111,7 +112,27 @@ const postMessage = async (req, res) => {
       io.to(recipientRoom).emit("receiveMessage", chat)
     }
 
-    await createMessageNotification({ recipient: receiverId, sender: senderId, link: `/messages?user=${receiverId}` })
+    await createMessageNotification({ recipient: receiverId, sender: senderId, link: `/messages?user=${senderId}` })
+
+    if (receiver.emailNotifications?.messages !== false && receiver.email) {
+      const sender = chat.senderId
+      const senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(" ") || sender?.username || "Someone"
+      const recipientName = [receiver.firstName, receiver.lastName].filter(Boolean).join(" ") || receiver.username || "there"
+      const messagePreview = trimmedText.length > 240 ? `${trimmedText.slice(0, 237)}...` : trimmedText
+      const clientUrl = String(process.env.CLIENT_URL || process.env.FRONTEND_URL || "https://dev-h-qzun.vercel.app").replace(/\/$/, "")
+      const messageUrl = `${clientUrl}/messages?user=${senderId}`
+
+      void sendNewMessageEmail({
+        to: receiver.email,
+        recipientName,
+        senderName,
+        messagePreview,
+        messageUrl,
+      }).catch((error) => {
+        console.error("New message email error:", error)
+      })
+    }
+
     res.status(201).json({ message: "Message sent", chat })
   } catch (error) {
     console.error("Post message error:", error)
