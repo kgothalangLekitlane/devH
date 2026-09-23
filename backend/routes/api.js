@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { getUsers, getUserById, searchCandidates } = require('../controllers/userController');
+const { getUsers, getUserById, searchCandidates, getMyNotificationPreferences, updateMyNotificationPreferences } = require('../controllers/userController');
 const { getMessages, getMessagesWithUser, postMessage } = require('../controllers/messageController');
 const { getRecruiters, createRecruiter, postJob, getJobs } = require('../controllers/recruiterController');
 const { getResources, addResource } = require('../controllers/resourceController');
@@ -24,6 +24,8 @@ router.post('/auth/login', loginUser);
 // Users
 router.get('/users', authenticate, getUsers);
 router.get('/users/search', authenticate, searchCandidates);
+router.get('/users/me/notifications', authenticate, getMyNotificationPreferences);
+router.patch('/users/me/notifications', authenticate, updateMyNotificationPreferences);
 router.get('/users/:id', getUserById);
 
 // Posts
