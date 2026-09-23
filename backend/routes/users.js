@@ -6,8 +6,8 @@ const authenticate = require("../middleware/authMiddleware");
 
 router.get("/", authenticate, getUsers);
 router.get("/search", authenticate, searchCandidates);
-router.get("/:id/avatar", getAvatar);
 router.get("/me/notifications", authenticate, getMyNotificationPreferences);
+router.get("/:id/avatar", getAvatar);
 router.patch("/me/notifications", authenticate, updateMyNotificationPreferences);
 router.post("/:id/view", authenticate, recordProfileView);
 router.get("/:id", getUserById);
