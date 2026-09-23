@@ -168,7 +168,6 @@ export default function MessagesPage() {
         if (existing) return [{ ...existing, lastMessage: incoming }, ...current.filter(item => idOf(item.user) !== otherId)]
         return current
       })
-      const selectedId = idOf(selected)
       if (idOf(incoming.senderId) === selectedId) void markConversationRead(selectedId, token)
     }
 
