@@ -116,6 +116,8 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 const io = new Server(server, { cors: corsOptions });
 global.__devheaven_io = io;
+const onlineUsers = new Map();
+global.__devheaven_online_users = onlineUsers;
 
 io.use((socket, next) => {
   try {
@@ -139,7 +141,7 @@ io.on("connection", (socket) => {
     if (!mongoose.Types.ObjectId.isValid(userId) || String(userId) === String(socket.user.id)) return;
     socket.join(conversationRoom(socket.user.id, userId));
   });
-  socket.on("leaveConversation", ({ userId } = {}) => {
+  socket.on("disconnect", () => {\n    const count = onlineUsers.get(connectedUserId) || 0;\n    if (count <= 1) onlineUsers.delete(connectedUserId);\n    else onlineUsers.set(connectedUserId, count - 1);\n  });\n  socket.on("leaveConversation", ({ userId } = {}) => {
     if (typeof userId !== "string" || !mongoose.Types.ObjectId.isValid(userId)) return;
     socket.leave(conversationRoom(socket.user.id, userId));
   });
