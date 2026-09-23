@@ -114,7 +114,7 @@ const postMessage = async (req, res) => {
 
     await createMessageNotification({ recipient: receiverId, sender: senderId, link: `/messages?user=${senderId}` })
 
-    if (receiver.emailNotifications?.messages !== false && receiver.email) {
+    const onlineUsers = global.__devheaven_online_users\n    const recipientOnline = onlineUsers instanceof Map && (onlineUsers.get(String(receiverId)) || 0) > 0\n\n    if (!recipientOnline && receiver.emailNotifications?.messages !== false && receiver.email) {
       const sender = chat.senderId
       const senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(" ") || sender?.username || "Someone"
       const recipientName = [receiver.firstName, receiver.lastName].filter(Boolean).join(" ") || receiver.username || "there"
