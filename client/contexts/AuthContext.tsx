@@ -23,6 +23,7 @@ interface User {
   salaryExpectation?: string;
   socialLinks?: { github?: string; linkedin?: string; twitter?: string; website?: string };
   createdAt?: string;
+  emailNotifications?: { messages?: boolean };
 }
 
 interface AuthContextType { user: User | null; token: string | null; login: (token: string, user: User) => void; logout: () => void; isLoading: boolean; }
