@@ -12,10 +12,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Code2, Send, Search, UserPlus, Check, X } from "lucide-react"
 
-type UserSummary = { _id: string; firstName?: string; lastName?: string; username?: string; profileImage?: string }
+type UserSummary = { _id?: string; id?: string; firstName?: string; lastName?: string; username?: string; profileImage?: string }
 type ConnectionRecord = { _id?: string; requester?: any; recipient?: any; status?: string }
 type Conversation = { user: UserSummary; lastMessage: any }
 const idOf = (value: any) => String(value?._id || value?.id || value || "")
+const normalizeUser = (value: any): UserSummary => ({ _id: idOf(value), id: idOf(value), firstName: value?.firstName, lastName: value?.lastName, username: value?.username, profileImage: value?.profileImage })
 
 export default function MessagesPage() {
   const { user: me, token } = useAuth()
@@ -62,7 +63,7 @@ export default function MessagesPage() {
         const otherId = senderId === String(me.id) ? receiverId : senderId
         if (!otherId || otherId === String(me.id) || byUser.has(otherId)) continue
         const populated = senderId === String(me.id) ? message.receiverId : message.senderId
-        const fallback = availableUsers.find(user => String(user._id) === otherId)
+        const fallback = availableUsers.find(user => idOf(user) === otherId)
         const user: UserSummary = populated && typeof populated === "object"
           ? { _id: otherId, firstName: populated.firstName, lastName: populated.lastName, username: populated.username, profileImage: populated.profileImage }
           : fallback || { _id: otherId }
@@ -78,7 +79,7 @@ export default function MessagesPage() {
 
       const requested = searchParams.get("user")
       if (requested) {
-        const requestedConversation = sortedConversations.find(item => item.user._id === requested)
+        const requestedConversation = sortedConversations.find(item => idOf(item.user) === requested)
         if (requestedConversation) setSelected(requestedConversation.user)
       }
     } catch (err: any) {
@@ -89,11 +90,11 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!token) return
     fetchUsers(token).then(async list => {
-      const filtered: UserSummary[] = list.filter((u: UserSummary) => String(u._id) !== String(me?.id))
+      const filtered: UserSummary[] = list.map(normalizeUser).filter((u: UserSummary) => idOf(u) !== String(me?.id))
       setUsers(filtered)
       const requested = searchParams.get("user")
       if (requested) {
-        setSelected(filtered.find(u => String(u._id) === String(requested)) || null)
+        setSelected(filtered.find(u => idOf(u) === String(requested)) || null)
       } else {
         setSelected(current => current || null)
       }
@@ -110,9 +111,9 @@ export default function MessagesPage() {
       setSearching(true); setError("")
       try {
         const body = await searchCandidates(term, token)
-        const results: UserSummary[] = (body.candidates || []).filter((u: UserSummary) => String(u._id) !== String(me?.id))
+        const results: UserSummary[] = (body.candidates || []).map(normalizeUser).filter((u: UserSummary) => idOf(u) !== String(me?.id))
         setUsers(results)
-        setSelected(current => current && results.some(u => String(u._id) === String(current._id)) ? current : null)
+        setSelected(current => current && results.some(u => idOf(u) === idOf(current)) ? current : null)
       } catch (err: any) { setError(err.message || "Unable to search people") }
       finally { setSearching(false) }
     }, 300)
@@ -122,14 +123,14 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!token || !selected) return
     setError("")
-    fetchMessagesWithUser(selected._id, token).then(async body => {
+    fetchMessagesWithUser(idOf(selected), token).then(async body => {
       setMessages(body.messages || [])
-      await markConversationRead(selected._id, token).catch(() => undefined)
+      await markConversationRead(idOf(selected), token).catch(() => undefined)
       setConversations(current => {
         const latest = body.messages?.[body.messages.length - 1]
         if (!latest) return current
-        const existing = current.find(item => item.user._id === selected._id)
-        if (existing) return current.map(item => item.user._id === selected._id ? { ...item, lastMessage: latest } : item)
+        const existing = current.find(item => idOf(item.user) === idOf(selected))
+        if (existing) return current.map(item => idOf(item.user) === idOf(selected) ? { ...item, lastMessage: latest } : item)
         return [{ user: selected, lastMessage: latest }, ...current]
       })
     }).catch(err => setError(err.message || "Unable to load conversation"))
@@ -160,8 +161,8 @@ export default function MessagesPage() {
       })
       setConversations(current => {
         const otherId = idOf(incoming.senderId) === String(me?.id) ? idOf(incoming.receiverId) : idOf(incoming.senderId)
-        const existing = current.find(item => item.user._id === otherId)
-        if (existing) return [{ ...existing, lastMessage: incoming }, ...current.filter(item => item.user._id !== otherId)]
+        const existing = current.find(item => idOf(item.user) === otherId)
+        if (existing) return [{ ...existing, lastMessage: incoming }, ...current.filter(item => idOf(item.user) !== otherId)]
         return current
       })
       if (idOf(incoming.senderId) === String(selected._id)) void markConversationRead(selected._id, token)
@@ -201,7 +202,7 @@ export default function MessagesPage() {
   const handleConnect = async () => {
     if (!token || !selected || connectionLoading) return
     setConnectionLoading(true); setError("")
-    try { await requestConnection(selected._id, token); await loadConnections() }
+    try { await requestConnection(idOf(selected), token); await loadConnections() }
     catch (err: any) { setError(err.message || "Unable to send connection request") }
     finally { setConnectionLoading(false) }
   }
@@ -220,12 +221,12 @@ export default function MessagesPage() {
     if (!token || !selected || !text.trim()) return
     const draft = text.trim(); setText(""); setError("")
     try {
-      const result = await sendMessage({ receiverId: selected._id, text: draft }, token)
+      const result = await sendMessage({ receiverId: idOf(selected), text: draft }, token)
       if (result.chat) {
         setMessages(prev => prev.some(message => String(message._id || message.messageId) === String(result.chat._id)) ? prev : [...prev, result.chat])
         setConversations(current => {
-          const existing = current.find(item => item.user._id === selected._id)
-          if (existing) return [{ ...existing, lastMessage: result.chat }, ...current.filter(item => item.user._id !== selected._id)]
+          const existing = current.find(item => idOf(item.user) === idOf(selected))
+          if (existing) return [{ ...existing, lastMessage: result.chat }, ...current.filter(item => idOf(item.user) !== idOf(selected))]
           return [{ user: selected, lastMessage: result.chat }, ...current]
         })
       }
@@ -243,7 +244,7 @@ export default function MessagesPage() {
         <header className="mb-6 flex items-center justify-between"><Link href="/dashboard" className="flex items-center gap-2 font-semibold"><Code2 className="h-6 w-6" />DevHeaven</Link><span className={`text-sm ${socketReady ? "text-emerald-600" : "text-muted-foreground"}`}>{socketReady ? "Connected" : "Connecting…"}</span></header>
         {error && <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm">{error}</div>}
         <div className="grid gap-4 md:grid-cols-[300px_1fr]">
-          <Card><CardHeader><CardTitle>Conversations</CardTitle><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search conversations…" className="pl-9" /></div></CardHeader><CardContent className="space-y-2">{searching && <p className="text-sm text-muted-foreground">Searching…</p>}{!searching && loading && <p className="text-sm text-muted-foreground">Loading conversations…</p>}{!searching && !loading && visibleConversations.length === 0 && <p className="text-sm text-muted-foreground">No conversations found.</p>}{visibleConversations.map(item => { const user = item.user; return <button key={user._id} onClick={() => setSelected(user)} className={`flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selected?._id === user._id ? "bg-muted" : ""}`}><Avatar><AvatarImage src={assetUrl(user.profileImage)} /><AvatarFallback>{`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` || "U"}</AvatarFallback></Avatar><span className="min-w-0"><span className="block truncate font-medium">{`${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username || "User"}</span><span className="block truncate text-xs text-muted-foreground">{item.lastMessage?.text || "Conversation"}</span></span></button>})}</CardContent></Card>
+          <Card><CardHeader><CardTitle>Conversations</CardTitle><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search conversations…" className="pl-9" /></div></CardHeader><CardContent className="space-y-2">{searching && <p className="text-sm text-muted-foreground">Searching…</p>}{!searching && loading && <p className="text-sm text-muted-foreground">Loading conversations…</p>}{!searching && !loading && visibleConversations.length === 0 && <p className="text-sm text-muted-foreground">No conversations found.</p>}{visibleConversations.map(item => { const user = item.user; return <button key={idOf(user)} onClick={() => setSelected(user)} className={`flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${idOf(selected) === idOf(user) ? "bg-muted" : ""}`}><Avatar><AvatarImage src={assetUrl(user.profileImage)} /><AvatarFallback>{`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}` || "U"}</AvatarFallback></Avatar><span className="min-w-0"><span className="block truncate font-medium">{`${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username || "User"}</span><span className="block truncate text-xs text-muted-foreground">{item.lastMessage?.text || "Conversation"}</span></span></button>})}</CardContent></Card>
           <Card className="flex min-h-[600px] flex-col overflow-hidden"><CardHeader className="border-b"><div className="flex items-center justify-between gap-3"><CardTitle>{conversationTitle}</CardTitle>{selected && <div className="flex items-center gap-2">{connectionState === "none" && <Button size="sm" onClick={() => void handleConnect()} disabled={connectionLoading}><UserPlus className="mr-2 h-4 w-4" />{connectionLoading ? "Sending…" : "Connect"}</Button>}{connectionState === "outgoing" && <Button size="sm" variant="secondary" disabled>Request Sent</Button>}{connectionState === "incoming" && <><Button size="sm" onClick={() => void handleConnectionDecision("accepted")} disabled={connectionLoading}><Check className="mr-2 h-4 w-4" />Accept</Button><Button size="sm" variant="outline" onClick={() => void handleConnectionDecision("rejected")} disabled={connectionLoading}><X className="mr-2 h-4 w-4" />Reject</Button></>}{connectionState === "accepted" && <Button size="sm" variant="secondary" disabled>Connected</Button>}{connectionState === "rejected" && <Button size="sm" onClick={() => void handleConnect()} disabled={connectionLoading}><UserPlus className="mr-2 h-4 w-4" />Connect Again</Button>}</div>}</div></CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
               <div className="flex-1 space-y-3 overflow-y-auto px-4 py-6 sm:px-6">
