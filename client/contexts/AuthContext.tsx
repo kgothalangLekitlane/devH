@@ -1,7 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { fetchCurrentUser } from '../lib/api';
-import { disconnectSocket } from '../lib/socket';
+import { disconnectSocket, getSocket } from '../lib/socket';
 
 interface User {
   id: string;
@@ -31,7 +31,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const clearStoredSession = () => { localStorage.removeItem('authToken'); localStorage.removeItem('authUser'); };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null); const [token, setToken] = useState<string | null>(null); const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     let cancelled = false;
     const expireSession = () => {
@@ -49,7 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await fetchCurrentUser(storedToken);
         const currentUser = response?.user;
         if (!currentUser?.id) throw new Error('Invalid current-user response');
-        if (!cancelled) { setToken(storedToken); setUser(currentUser); localStorage.setItem('authUser', JSON.stringify(currentUser)); }
+        if (!cancelled) {
+          setToken(storedToken);
+          setUser(currentUser);
+          localStorage.setItem('authUser', JSON.stringify(currentUser));
+        }
       } catch {
         if (!cancelled) expireSession();
       } finally {
@@ -57,10 +64,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
     void restoreSession();
-    return () => { cancelled = true; window.removeEventListener('devheaven:auth-expired', expireSession); };
+    return () => {
+      cancelled = true;
+      window.removeEventListener('devheaven:auth-expired', expireSession);
+    };
   }, []);
-  const login = (newToken: string, newUser: User) => { if (!newToken || !newUser?.id) throw new Error('Invalid authentication response'); disconnectSocket(); clearStoredSession(); setToken(newToken); setUser(newUser); localStorage.setItem('authToken', newToken); localStorage.setItem('authUser', JSON.stringify(newUser)); };
-  const logout = () => { disconnectSocket(); setToken(null); setUser(null); clearStoredSession(); };
+
+  // Keep one authenticated Socket.IO connection active across DevHeaven,
+  // so the backend can accurately determine whether this user is online.
+  useEffect(() => {
+    if (!token) return;
+    getSocket(token);
+  }, [token]);
+
+  const login = (newToken: string, newUser: User) => {
+    if (!newToken || !newUser?.id) throw new Error('Invalid authentication response');
+    disconnectSocket();
+    clearStoredSession();
+    setToken(newToken);
+    setUser(newUser);
+    localStorage.setItem('authToken', newToken);
+    localStorage.setItem('authUser', JSON.stringify(newUser));
+  };
+
+  const logout = () => {
+    disconnectSocket();
+    setToken(null);
+    setUser(null);
+    clearStoredSession();
+  };
+
   return <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>{children}</AuthContext.Provider>;
 }
-export function useAuth() { const context = useContext(AuthContext); if (!context) throw new Error('useAuth must be used within AuthProvider'); return context; }
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+}
