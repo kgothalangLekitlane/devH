@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { ArrowLeft, Clock3, Heart, MessageCircle, Send, Trash2, UserRound, Repeat2, Share2 } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
@@ -16,7 +17,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://devh-1.onrender.com"
 
 type Person = { _id?: string; id?: string; firstName?: string; lastName?: string; username?: string; profileImage?: string }
 type Comment = { _id: string; text: string; user: Person; createdAt?: string }
-type Post = { _id: string; title: string; content: string; tags?: string[]; likes?: any[]; comments?: Comment[]; reposts?: any[]; repostOf?: { _id?: string; author?: Person } | null; author: Person; createdAt?: string }
+type MediaItem = { _id?: string; url: string; type: "image" | "video"; mimeType?: string; filename?: string }\ntype Post = { _id: string; title: string; content: string; media?: MediaItem[]; tags?: string[]; likes?: any[]; comments?: Comment[]; reposts?: any[]; repostOf?: { _id?: string; author?: Person } | null; author: Person; createdAt?: string }
 
 const idOf = (value: any) => String(value?._id || value?.id || value || "")
 const initials = (person?: Person) => `${person?.firstName?.[0] || ""}${person?.lastName?.[0] || person?.username?.[0] || "D"}`.toUpperCase()
@@ -128,7 +129,7 @@ export default function CommunityPostPage() {
     {error && <div className="mb-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-600 dark:text-red-300">{error}</div>}
     <article className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
       <div className="p-6 sm:p-8"><div className="flex items-start gap-3"><Link href={`/profile/${idOf(post.author)}`}><Avatar className="h-12 w-12 border border-border"><AvatarImage src={assetUrl(post.author?.profileImage)} /><AvatarFallback>{initials(post.author)}</AvatarFallback></Avatar></Link><div className="min-w-0 flex-1"><Link href={`/profile/${idOf(post.author)}`} className="font-semibold hover:underline">{post.author?.firstName} {post.author?.lastName}</Link><p className="text-sm text-muted-foreground">@{post.author?.username || "developer"}</p><p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="h-3 w-3" />{formatDate(post.createdAt)}</p></div></div>
-        <h1 className="mt-7 text-2xl font-extrabold tracking-tight sm:text-3xl">{post.title}</h1><div className="mt-4 whitespace-pre-wrap text-[15px] leading-7 text-muted-foreground">{post.content}</div>
+        <h1 className="mt-7 text-2xl font-extrabold tracking-tight sm:text-3xl">{post.title}</h1>{post.content && <div className="mt-4 whitespace-pre-wrap text-[15px] leading-7 text-muted-foreground">{post.content}</div>}{!!post.media?.length && <div className="mt-6 space-y-4">{post.media.map(media => <div key={String(media._id || media.url)} className="overflow-hidden rounded-2xl border border-border bg-muted">{media.type === "video" ? <video src={assetUrl(media.url)} className="max-h-[720px] w-full" controls playsInline preload="metadata" /> : <div className="relative aspect-video"><Image src={assetUrl(media.url)} alt={media.filename || "Post image"} fill unoptimized sizes="(max-width: 768px) 100vw, 768px" className="object-contain" /></div>}</div>)}</div>}
         {!!post.tags?.length && <div className="mt-5 flex flex-wrap gap-2">{post.tags.map(tag => <Badge key={tag} variant="secondary">#{tag}</Badge>)}</div>}
         <div className="mt-7 flex flex-wrap items-center gap-1 border-t border-border pt-4"><Button variant="ghost" size="sm" disabled={busy || !token} onClick={() => void like()} className={liked ? "text-pink-500" : "text-muted-foreground"}><Heart className={`mr-2 h-4 w-4 ${liked ? "fill-current" : ""}`} />{post.likes?.length || 0} likes</Button><span className="inline-flex items-center px-3 text-sm text-muted-foreground"><MessageCircle className="mr-2 h-4 w-4" />{post.comments?.length || 0} comments</span><Button variant="ghost" size="sm" disabled={busy || !token} onClick={() => void repost()} className={reposted ? "text-emerald-500" : "text-muted-foreground"}><Repeat2 className="mr-2 h-4 w-4" />{reposted ? "Reposted" : "Repost"}{post.reposts?.length ? ` ${post.reposts.length}` : ""}</Button><Button variant="ghost" size="sm" onClick={() => void share()} className="text-muted-foreground"><Share2 className="mr-2 h-4 w-4" />Share</Button></div>
       </div>
