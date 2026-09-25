@@ -37,11 +37,11 @@ router.get("/suggestions", authenticate, async (req, res) => {
       : { _id: { $nin: [...excluded].filter((id) => mongoose.Types.ObjectId.isValid(id)) } };
     if (q) {
       const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      query.$or = [{ firstName: regex }, { lastName: regex }, { username: regex }, { location: regex }, { skills: regex }];
+      query.$or = [{ firstName: regex }, { lastName: regex }, { username: regex }, { headline: regex }, { currentRole: regex }, { location: regex }, { skills: regex }];
     }
     if (location) query.location = new RegExp(location.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     if (skill) query.skills = new RegExp(skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    if (Number.isFinite(experience)) query.experience = { $gte: Math.max(0, experience - 2), $lte: experience + 2 };
+    if (Number.isFinite(experience)) query.experience = { $gte: Math.max(0, experience) };
 
     const candidates = await User.find(query, publicFields).limit(q ? 50 : 100).lean();
     const candidateIds = candidates.map((u) => u._id);
