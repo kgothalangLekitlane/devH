@@ -11,7 +11,6 @@ import {
   Menu,
   MessageCircle,
   Network,
-  Search,
   Sparkles,
   Users,
   X,
@@ -86,7 +85,7 @@ export default function LandingPage() {
           <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[.14em] text-cyan-100"><Sparkles className="h-4 w-4 text-cyan-300" /> Built for people who build</div>
           <h1 className="max-w-3xl text-5xl font-semibold leading-[.98] tracking-[-.06em] sm:text-6xl lg:text-[5.4rem]">Your work.<br /><span className="bg-gradient-to-r from-cyan-200 via-sky-300 to-violet-300 bg-clip-text text-transparent">Your people.</span><br /><span className="text-slate-500">Your next move.</span></h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-slate-300">DevHeaven is the developer community where your profile, projects, network, conversations and career opportunities finally live together.</p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row"><Link href="/signup" className="group inline-flex items-center justify-center gap-2 rounded-full bg-cyan-300 px-6 py-3.5 font-bold text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:-translate-y-1 hover:bg-cyan-200">Create your profile <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link><Link href="/jobs" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[.04] px-6 py-3.5 font-semibold text-white transition hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-cyan-300/10"><Search className="h-4 w-4" /> Explore opportunities</Link></div>
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row"><Link href="/signup" className="group inline-flex items-center justify-center gap-2 rounded-full bg-cyan-300 px-6 py-3.5 font-bold text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:-translate-y-1 hover:bg-cyan-200">Create your profile <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link><Link href="/jobs" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[.04] px-6 py-3.5 font-semibold text-white transition hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-cyan-300/10">Explore opportunities</Link></div>
           <div className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-sm text-slate-400">{["Show your work", "Grow your network", "Find opportunity"].map((item) => <span key={item} className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-cyan-300" />{item}</span>)}</div>
         </div>
 
