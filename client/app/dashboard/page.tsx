@@ -15,7 +15,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 type Person = { _id?: string; id?: string; firstName?: string; lastName?: string; username?: string; profileImage?: string }
-type MediaItem = { _id?: string; url: string; type: "image" | "video"; mimeType?: string; filename?: string }\ntype Post = { _id: string; title?: string; content?: string; body?: string; media?: MediaItem[]; author?: Person; user?: Person; likes?: any[]; comments?: any[]; reposts?: any[]; repostOf?: { _id?: string; author?: Person } | null; createdAt?: string }
+type MediaItem = { _id?: string; url: string; type: "image" | "video"; mimeType?: string; filename?: string }
+type Post = { _id: string; title?: string; content?: string; body?: string; media?: MediaItem[]; author?: Person; user?: Person; likes?: any[]; comments?: any[]; reposts?: any[]; repostOf?: { _id?: string; author?: Person } | null; createdAt?: string }
 
 const idOf = (value: any) => String(value?._id || value?.id || value || "")
 
@@ -25,7 +26,10 @@ export default function DashboardPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [query, setQuery] = useState("")
   const [showComposer, setShowComposer] = useState(false)
-  const [newPost, setNewPost] = useState({ title: "", content: "" })\n  const [mediaFiles, setMediaFiles] = useState<File[]>([])\n  const [mediaPreviews, setMediaPreviews] = useState<{ file: File; url: string }[]>([])\n  const mediaInputRef = useRef<HTMLInputElement>(null)
+  const [newPost, setNewPost] = useState({ title: "", content: "" })
+  const [mediaFiles, setMediaFiles] = useState<File[]>([])
+  const [mediaPreviews, setMediaPreviews] = useState<{ file: File; url: string }[]>([])
+  const mediaInputRef = useRef<HTMLInputElement>(null)
   const [connections, setConnections] = useState(0)
   const [projects, setProjects] = useState(0)
   const [views, setViews] = useState(0)
@@ -52,13 +56,31 @@ export default function DashboardPage() {
     setLoading(false)
   }, [token])
 
-  useEffect(() => { if (!authLoading && token) void load(); else if (!authLoading) setLoading(false) }, [authLoading, token, load])\n\n  useEffect(() => {\n    const previews = mediaFiles.map(file => ({ file, url: URL.createObjectURL(file) }))\n    setMediaPreviews(previews)\n    return () => previews.forEach(preview => URL.revokeObjectURL(preview.url))\n  }, [mediaFiles])\n\n  const addMedia = (files: FileList | null) => {\n    if (!files?.length) return\n    const incoming = Array.from(files)\n    const allowed = incoming.filter(file => file.type.startsWith("image/") || file.type === "video/mp4" || file.type === "video/webm")\n    const oversized = allowed.find(file => file.size > 25 * 1024 * 1024)\n    if (oversized) { setError("Each photo or video must be 25 MB or smaller."); return }\n    const next = [...mediaFiles, ...allowed].slice(0, 6)\n    if (next.reduce((sum, file) => sum + file.size, 0) > 100 * 1024 * 1024) { setError("Total media size cannot exceed 100 MB."); return }\n    setError("")\n    setMediaFiles(next)\n  }
+  useEffect(() => { if (!authLoading && token) void load(); else if (!authLoading) setLoading(false) }, [authLoading, token, load])
+
+  useEffect(() => {
+    const previews = mediaFiles.map(file => ({ file, url: URL.createObjectURL(file) }))
+    setMediaPreviews(previews)
+    return () => previews.forEach(preview => URL.revokeObjectURL(preview.url))
+  }, [mediaFiles])
+
+  const addMedia = (files: FileList | null) => {
+    if (!files?.length) return
+    const incoming = Array.from(files)
+    const allowed = incoming.filter(file => file.type.startsWith("image/") || file.type === "video/mp4" || file.type === "video/webm")
+    const oversized = allowed.find(file => file.size > 25 * 1024 * 1024)
+    if (oversized) { setError("Each photo or video must be 25 MB or smaller."); return }
+    const next = [...mediaFiles, ...allowed].slice(0, 6)
+    if (next.reduce((sum, file) => sum + file.size, 0) > 100 * 1024 * 1024) { setError("Total media size cannot exceed 100 MB."); return }
+    setError("")
+    setMediaFiles(next)
+  }
 
   const publish = async () => {
-    if (!token || !newPost.title.trim() || !newPost.content.trim()) return
+    if (!token || (!newPost.title.trim() && !newPost.content.trim() && !mediaFiles.length)) return
     try {
-      await createPost({ title: newPost.title.trim(), content: newPost.content.trim() }, token)
-      setNewPost({ title: "", content: "" }); setShowComposer(false); await load(); toast({ title: "Post published" })
+      await createPost({ title: newPost.title.trim() || (mediaFiles.length ? "Media post" : ""), content: newPost.content.trim(), media: mediaFiles }, token)
+      setNewPost({ title: "", content: "" }); setMediaFiles([]); setShowComposer(false); await load(); toast({ title: "Post published" })
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to publish post.") }
   }
 
