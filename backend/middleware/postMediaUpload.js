@@ -12,7 +12,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     files: 6,
-    fileSize: 50 * 1024 * 1024,
+    fileSize: 25 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
     if (!allowedMimeTypes.has(file.mimetype)) {
