@@ -6,14 +6,16 @@ const authenticate = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-const publicFields = "firstName lastName username profileImage bio skills location experience socialLinks";
+const publicFields = "firstName lastName username profileImage bio headline currentRole skills location experience socialLinks";
 
 router.get("/suggestions", authenticate, async (req, res) => {
   try {
     const me = await User.findById(req.user.id).select("skills location experience").lean();
     if (!me) return res.status(404).json({ error: "User not found" });
 
-    const q = String(req.query.q || "").trim();
+    const rawQuery = String(req.query.q || "").trim();
+    // Support searches such as "@username" as well as "username".
+    const q = rawQuery.replace(/^@+/, "").trim();
     const location = String(req.query.location || "").trim();
     const skill = String(req.query.skill || "").trim();
     const experience = Number(req.query.experience);
