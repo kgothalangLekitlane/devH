@@ -29,7 +29,14 @@ const sendNewMessageEmail = async ({
 
   // Email is an optional enhancement. Never make message delivery depend on it.
   if (!resend || !from || !to) {
-    return { skipped: true }
+    const reason = !resend
+      ? "RESEND_API_KEY is missing or Resend is unavailable"
+      : !from
+        ? "RESEND_FROM_EMAIL is not configured"
+        : "recipient email is missing"
+
+    console.info(`Offline message email skipped: ${reason}.`)
+    return { skipped: true, reason }
   }
 
   try {
@@ -59,6 +66,7 @@ const sendNewMessageEmail = async ({
       return { skipped: true, error }
     }
 
+    console.info(`Offline message email sent to ${to}.`)
     return data
   } catch (error) {
     // Provider/network errors must never propagate into the message request.
