@@ -96,6 +96,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/github", require("./routes/github"));
 app.use("/api/posts", require("./routes/posts"));
+app.use("/api/post-media", require("./routes/postMedia"));
 app.use("/api/resources", require("./routes/resources"));
 app.use("/api/recruiters", require("./routes/recruiters"));
 app.use("/api/jobs", require("./routes/jobs"));
