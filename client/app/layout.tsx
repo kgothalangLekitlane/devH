@@ -5,7 +5,6 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/components/theme-provider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { MobileNav } from '@/components/mobile-nav'
-import { GlobalSearch } from '@/components/global-search'
 
 export const metadata: Metadata = {
   title: 'DevHeaven — Where developers build momentum',
@@ -28,7 +27,6 @@ export default function RootLayout({
         >
           <ErrorBoundary>
             <AuthProvider>
-              <GlobalSearch />
               {children}
               <MobileNav />
             </AuthProvider>
