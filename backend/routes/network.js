@@ -30,7 +30,11 @@ router.get("/suggestions", authenticate, async (req, res) => {
       if (c.status === "accepted" || c.status === "pending") excluded.add(other);
     });
 
-    const query = { _id: { $nin: [...excluded].filter((id) => mongoose.Types.ObjectId.isValid(id)) } };
+    // Discovery hides people you already know or have a pending request with.
+    // A deliberate search should still be able to find any other person on the platform.
+    const query = q
+      ? { _id: { $ne: req.user.id } }
+      : { _id: { $nin: [...excluded].filter((id) => mongoose.Types.ObjectId.isValid(id)) } };
     if (q) {
       const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       query.$or = [{ firstName: regex }, { lastName: regex }, { username: regex }, { location: regex }, { skills: regex }];
@@ -39,7 +43,7 @@ router.get("/suggestions", authenticate, async (req, res) => {
     if (skill) query.skills = new RegExp(skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     if (Number.isFinite(experience)) query.experience = { $gte: Math.max(0, experience - 2), $lte: experience + 2 };
 
-    const candidates = await User.find(query, publicFields).limit(100).lean();
+    const candidates = await User.find(query, publicFields).limit(q ? 50 : 100).lean();
     const candidateIds = candidates.map((u) => u._id);
 
     const mutualRows = acceptedIds.size && candidateIds.length
