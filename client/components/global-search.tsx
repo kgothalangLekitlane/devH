@@ -40,7 +40,10 @@ export function GlobalSearch() {
     router.push(value ? `/search?q=${encodeURIComponent(value)}` : "/search")
   }
 
-  if (pathname === "/search") return null
+  // Authentication pages should stay focused on signing in or creating an account.
+  if (pathname === "/search" || pathname.startsWith("/auth/") || pathname === "/login" || pathname === "/signup") {
+    return null
+  }
 
   return (
     <div className="fixed right-4 top-4 z-40">
