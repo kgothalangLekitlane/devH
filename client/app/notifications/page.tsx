@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Bell, Check, CheckCheck, MessageCircle, UserPlus, BriefcaseBusiness, Heart, MessageSquare, Settings2, ArrowRight, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import { assetUrl, fetchNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api"
+import { assetUrl, fetchConnections, fetchNotifications, markAllNotificationsRead, markNotificationRead, updateConnection } from "@/lib/api"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,7 @@ type Notification = {
   link?: string
   read: boolean
   createdAt: string
-  sender?: { firstName?: string; lastName?: string; username?: string; profileImage?: string }
+  sender?: { firstName?: string; lastName?: string; username?: string; profileImage?: string; _id?: string; id?: string }
 }
 
 type Filter = "all" | "unread" | "connections" | "applications" | "messages" | "community"
@@ -58,6 +58,7 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<Filter>("all")
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  const [connections, setConnections] = useState<any[]>([])
   const [error, setError] = useState("")
 
   const load = useCallback(async () => {
@@ -68,6 +69,8 @@ export default function NotificationsPage() {
       const body: any = await fetchNotifications(token, 50)
       setNotifications(body?.notifications || body || [])
       setUnreadCount(Number(body?.unreadCount || 0))
+      const connectionBody: any = await fetchConnections(token)
+      setConnections(connectionBody?.connections || connectionBody || [])
     } catch (e: any) {
       setError(e?.message || "Unable to load notifications")
     } finally {
@@ -92,6 +95,34 @@ export default function NotificationsPage() {
       setUnreadCount(count => Math.max(0, count - 1))
     } catch (e: any) { setError(e?.message || "Unable to update notification") }
     finally { setBusy(null) }
+  }
+
+  const respondToConnection = async (notification: Notification, status: "accepted" | "rejected") => {
+    if (!token || notification.type !== "connection" || !notification.sender) return
+    const senderId = String(notification.sender._id || notification.sender.id || "")
+    const connection = connections.find(item =>
+      item.status === "pending" &&
+      String(item.requester?._id || item.requester?.id || item.requester || "") === senderId &&
+      String(item.recipient?._id || item.recipient?.id || item.recipient || "") === String(user?.id)
+    )
+    if (!connection?._id) {
+      setError("This connection request is no longer pending.")
+      return
+    }
+
+    setBusy(notification._id)
+    setError("")
+    try {
+      await updateConnection(String(connection._id), status, token)
+      setConnections(items => items.map(item => String(item._id) === String(connection._id) ? { ...item, status } : item))
+      await markNotificationRead(notification._id, token).catch(() => undefined)
+      setNotifications(items => items.map(item => item._id === notification._id ? { ...item, read: true } : item))
+      setUnreadCount(count => Math.max(0, count - (notification.read ? 0 : 1)))
+    } catch (e: any) {
+      setError(e?.message || `Unable to ${status === "accepted" ? "accept" : "decline"} connection request`)
+    } finally {
+      setBusy(null)
+    }
   }
 
   const markAll = async () => {
@@ -120,7 +151,7 @@ export default function NotificationsPage() {
 
       <Card className="mt-4 overflow-hidden border-white/10 bg-white/[0.035]">
         <CardContent className="p-0">
-          {loading ? <div className="flex items-center justify-center gap-2 py-20 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading activity...</div> : visible.length === 0 ? <div className="py-20 text-center"><Settings2 className="mx-auto h-10 w-10 text-slate-700" /><h2 className="mt-3 font-semibold">Nothing here yet</h2><p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{filter === "unread" ? "You’re all caught up. New activity will appear here." : "Notifications from your DevHeaven activity will appear here."}</p></div> : <div className="divide-y divide-white/5">{visible.map(notification => { const Icon = iconFor(notification.type); const senderName = notification.sender ? `${notification.sender.firstName || ""} ${notification.sender.lastName || ""}`.trim() : "DevHeaven"; const content = notification.sender && notification.text && !notification.text.toLowerCase().includes(senderName.toLowerCase()) ? notification.text : notification.text; const item = <div className={`flex gap-4 p-4 transition-colors hover:bg-white/[0.025] ${!notification.read ? "bg-cyan-400/[0.035]" : ""}`}><div className={`mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl ${notification.read ? "bg-white/5 text-slate-500" : "bg-cyan-400/10 text-cyan-300"}`}>{notification.sender ? <Avatar className="h-10 w-10"><AvatarImage src={assetUrl(notification.sender.profileImage)} /><AvatarFallback>{notification.sender.firstName?.[0] || "D"}</AvatarFallback></Avatar> : <Icon className="h-5 w-5" />}</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div><p className={`text-sm leading-6 ${notification.read ? "text-slate-400" : "font-medium text-slate-100"}`}>{content}</p><p className="mt-1 text-xs text-slate-600">{timeAgo(notification.createdAt)}{senderName !== "DevHeaven" && notification.sender?.username ? ` · @${notification.sender.username}` : ""}</p></div>{!notification.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-cyan-400" />}</div><div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="ghost" onClick={() => void markRead(notification)} disabled={busy === notification._id || notification.read} className="h-8 px-2 text-xs text-slate-500 hover:text-white">{busy === notification._id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}{notification.read ? "Read" : "Mark read"}</Button>{notification.link && <Button asChild size="sm" className="h-8 bg-white/5 px-2 text-xs text-slate-300 hover:bg-white/10"><Link href={notification.link} onClick={() => void markRead(notification)}><ArrowRight className="mr-1.5 h-3.5 w-3.5" />Open</Link></Button>}</div></div></div>; return <div key={notification._id}>{item}</div>})}</div>}
+          {loading ? <div className="flex items-center justify-center gap-2 py-20 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading activity...</div> : visible.length === 0 ? <div className="py-20 text-center"><Settings2 className="mx-auto h-10 w-10 text-slate-700" /><h2 className="mt-3 font-semibold">Nothing here yet</h2><p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{filter === "unread" ? "You’re all caught up. New activity will appear here." : "Notifications from your DevHeaven activity will appear here."}</p></div> : <div className="divide-y divide-white/5">{visible.map(notification => { const Icon = iconFor(notification.type); const senderName = notification.sender ? `${notification.sender.firstName || ""} ${notification.sender.lastName || ""}`.trim() : "DevHeaven"; const content = notification.sender && notification.text && !notification.text.toLowerCase().includes(senderName.toLowerCase()) ? notification.text : notification.text; const item = <div className={`flex gap-4 p-4 transition-colors hover:bg-white/[0.025] ${!notification.read ? "bg-cyan-400/[0.035]" : ""}`}><div className={`mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl ${notification.read ? "bg-white/5 text-slate-500" : "bg-cyan-400/10 text-cyan-300"}`}>{notification.sender ? <Avatar className="h-10 w-10"><AvatarImage src={assetUrl(notification.sender.profileImage)} /><AvatarFallback>{notification.sender.firstName?.[0] || "D"}</AvatarFallback></Avatar> : <Icon className="h-5 w-5" />}</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div><p className={`text-sm leading-6 ${notification.read ? "text-slate-400" : "font-medium text-slate-100"}`}>{content}</p><p className="mt-1 text-xs text-slate-600">{timeAgo(notification.createdAt)}{senderName !== "DevHeaven" && notification.sender?.username ? ` · @${notification.sender.username}` : ""}</p></div>{!notification.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-cyan-400" />}</div><div className="mt-3 flex flex-wrap gap-2">{notification.type === "connection" && connections.some(item => item.status === "pending" && String(item.requester?._id || item.requester?.id || item.requester || "") === String(notification.sender?._id || notification.sender?.id || "") && String(item.recipient?._id || item.recipient?.id || item.recipient || "") === String(user?.id)) ? <><Button size="sm" onClick={() => void respondToConnection(notification, "accepted")} disabled={busy === notification._id} className="h-8 bg-cyan-500 px-3 text-xs text-white hover:bg-cyan-400">{busy === notification._id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}Accept</Button><Button size="sm" variant="outline" onClick={() => void respondToConnection(notification, "rejected")} disabled={busy === notification._id} className="h-8 border-white/10 px-3 text-xs text-slate-300">Decline</Button></> : <>{!notification.read && <Button size="sm" variant="ghost" onClick={() => void markRead(notification)} disabled={busy === notification._id} className="h-8 px-2 text-xs text-slate-500 hover:text-white">{busy === notification._id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}Mark read</Button>}{notification.link && <Button asChild size="sm" className="h-8 bg-white/5 px-2 text-xs text-slate-300 hover:bg-white/10"><Link href={notification.type === "connection" ? "/discovery" : notification.link} onClick={() => void markRead(notification)}><ArrowRight className="mr-1.5 h-3.5 w-3.5" />Open</Link></Button>}</>}</div></div></div>; return <div key={notification._id}>{item}</div>})}</div>}
         </CardContent>
       </Card>
     </main>
