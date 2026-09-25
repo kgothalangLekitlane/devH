@@ -1,5 +1,13 @@
 const mongoose = require("mongoose")
 
+const mediaSchema = new mongoose.Schema({
+  fileId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  type: { type: String, enum: ["image", "video"], required: true },
+  mimeType: { type: String, required: true },
+  url: { type: String, required: true },
+  filename: { type: String, default: "" },
+}, { _id: true })
+
 const commentSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   text: { type: String, required: true, trim: true, maxlength: 2000 },
@@ -8,7 +16,8 @@ const commentSchema = new mongoose.Schema({
 
 const postSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 },
-  content: { type: String, required: true, trim: true, maxlength: 20000 },
+  content: { type: String, default: "", trim: true, maxlength: 20000 },
+  media: { type: [mediaSchema], default: [] },
   author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   tags: [{ type: String, trim: true, maxlength: 50 }],
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
